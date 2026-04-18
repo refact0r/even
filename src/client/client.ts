@@ -114,6 +114,7 @@ function validateItem(raw: unknown, mode: Mode): Omit<Item, 'id' | 'createdAt'> 
   const sections = obj.sections
   if (!Array.isArray(sections) || sections.length === 0) return null
   if (mode === 'short' && sections.length !== 1) return null
+  if (mode === 'long' && sections.length > 7) return null
 
   const cleanSections: Section[] = []
   for (const s of sections) {
@@ -123,6 +124,9 @@ function validateItem(raw: unknown, mode: Mode): Omit<Item, 'id' | 'createdAt'> 
     if (typeof sec.content !== 'string' || !sec.content.trim()) return null
     cleanSections.push({ heading: sec.heading.trim(), content: sec.content.trim() })
   }
+
+  if (cleanSections[0].heading.toLowerCase() !== 'summary') return null
+  cleanSections[0] = { ...cleanSections[0], heading: 'Summary' }
 
   return {
     type: type as ItemType,

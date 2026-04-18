@@ -41,6 +41,15 @@ main {
   gap: 14px;
 }
 
+header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
 header h1 {
   font-size: 32px;
   margin: 0 0 6px;
@@ -52,6 +61,36 @@ header .sub {
   margin: 0;
   color: var(--muted);
   max-width: 40rem;
+}
+
+.view-nav {
+  display: flex;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px;
+}
+
+.view-tab {
+  background: transparent;
+  color: var(--muted);
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.view-tab.active {
+  background: var(--accent);
+  color: #f7f4ec;
+}
+
+#view-notes,
+#view-settings {
+  display: grid;
+  gap: 14px;
 }
 
 .card {
@@ -87,9 +126,20 @@ header .sub {
 }
 
 .actions {
+  display: grid;
+  gap: 10px;
+}
+
+.actions-row {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.item-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .ingest {
@@ -106,8 +156,7 @@ header .sub {
 
 .ingest input[type="password"],
 .ingest input[type="url"],
-.ingest input[type="file"],
-.ingest select {
+.ingest input[type="file"] {
   flex: 1 1 220px;
   font: inherit;
   color: var(--text);
@@ -115,13 +164,6 @@ header .sub {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 8px 10px;
-}
-
-.ingest .mode-label {
-  color: var(--muted);
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
 }
 
 .ingest .key-link {

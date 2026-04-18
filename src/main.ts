@@ -1,9 +1,9 @@
 import './style.css'
 import { waitForEvenAppBridge } from '@evenrealities/even_hub_sdk'
-import { addItem, consumeRecent, loadItems, resetStorage } from './store'
+import { addItem, consumeRecent, loadItems, removeItem, resetStorage } from './store'
 import { GlassesApp, type AppState, type Screen } from './glasses'
 import { installDebugConsole } from './debug-console'
-import { getApiKey, setApiKey, type Mode } from './client/client'
+import { getApiKey, setApiKey } from './client/client'
 import { ingestFile } from './data-stream/from-file'
 import { ingestLink } from './data-stream/from-link'
 import type { Item } from './types'
@@ -13,65 +13,75 @@ app.innerHTML = `
   <main>
     <header>
       <h1>Universal Reader</h1>
-      <p class="sub">Seed local items here. The glasses are the actual reader UI.</p>
+      <nav class="view-nav" role="tablist">
+        <button data-view="notes" class="view-tab active" type="button">Notes</button>
+        <button data-view="settings" class="view-tab" type="button">Settings</button>
+      </nav>
     </header>
 
-    <section class="card status">
-      <div><span class="label">Bridge</span><span id="bridge-status">connecting…</span></div>
-      <div><span class="label">Screen</span><span id="screen-status">—</span></div>
-      <div><span class="label">Item</span><span id="item-status">—</span></div>
-      <div><span class="label">Section</span><span id="section-status">—</span></div>
-      <div><span class="label">Last call</span><span id="call-status">—</span></div>
-    </section>
+    <div id="view-notes">
+      <section class="card ingest">
+        <div class="section-head">
+          <h2>Upload</h2>
+        </div>
+        <div class="ingest-row">
+          <input id="file-input" type="file" accept=".txt,.pdf,.png,.jpg,.jpeg,.webp,.gif,text/plain,application/pdf,image/*" />
+          <button id="file-btn">Summarize file</button>
+        </div>
+        <div class="ingest-row">
+          <input id="url-input" type="url" placeholder="https://example.com/article" />
+          <button id="url-btn">Summarize URL</button>
+        </div>
+        <div id="ingest-status" class="meta">Short text gets a single Summary; longer input and media get a Summary plus chapters.</div>
+      </section>
 
-    <section class="card ingest">
-      <div class="section-head">
-        <h2>OpenRouter Ingest</h2>
-        <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer noopener" class="key-link">Get a key ↗</a>
-      </div>
-      <div class="ingest-row">
-        <input id="api-key-input" type="password" placeholder="sk-or-…" autocomplete="off" />
-        <button id="api-key-save" class="slim">Save key</button>
-        <span id="api-key-status" class="meta">—</span>
-      </div>
-      <div class="ingest-row">
-        <label class="mode-label" for="mode-select">Mode</label>
-        <select id="mode-select">
-          <option value="short">short</option>
-          <option value="long">long</option>
-        </select>
-      </div>
-      <div class="ingest-row">
-        <input id="file-input" type="file" accept=".txt,.pdf,.png,.jpg,.jpeg,.webp,.gif,text/plain,application/pdf,image/*" />
-        <button id="file-btn">Summarize file</button>
-      </div>
-      <div class="ingest-row">
-        <input id="url-input" type="url" placeholder="https://example.com/article" />
-        <button id="url-btn">Summarize URL</button>
-      </div>
-      <div id="ingest-status" class="meta">Ready.</div>
-    </section>
+      <section class="card items">
+        <div class="section-head">
+          <h2>Notes</h2>
+          <span id="item-count">0</span>
+        </div>
+        <ol id="item-list"></ol>
+      </section>
 
-    <section class="card actions">
-      <button id="add-btn">Add dummy item (skip home on next boot)</button>
-      <button id="reset-btn" class="ghost">Reset storage &amp; reload</button>
-    </section>
+      <section class="card debug">
+        <div class="section-head">
+          <h2>Debug Console</h2>
+          <button id="clear-log-btn" class="ghost slim" type="button">Clear</button>
+        </div>
+        <div id="debug-log" class="debug-log" role="log" aria-live="polite"></div>
+      </section>
+    </div>
 
-    <section class="card debug">
-      <div class="section-head">
-        <h2>Debug Console</h2>
-        <button id="clear-log-btn" class="ghost slim" type="button">Clear</button>
-      </div>
-      <div id="debug-log" class="debug-log" role="log" aria-live="polite"></div>
-    </section>
+    <div id="view-settings" hidden>
+      <section class="card ingest">
+        <div class="section-head">
+          <h2>OpenRouter API key</h2>
+          <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer noopener" class="key-link">Get a key ↗</a>
+        </div>
+        <div class="ingest-row">
+          <input id="api-key-input" type="password" placeholder="sk-or-…" autocomplete="off" />
+          <button id="api-key-save" class="slim">Save key</button>
+          <span id="api-key-status" class="meta">—</span>
+        </div>
+      </section>
 
-    <section class="card items">
-      <div class="section-head">
-        <h2>Stored Items</h2>
-        <span id="item-count">0</span>
-      </div>
-      <ol id="item-list"></ol>
-    </section>
+      <section class="card status">
+        <div class="section-head"><h2>Glasses status</h2></div>
+        <div><span class="label">Bridge</span><span id="bridge-status">connecting…</span></div>
+        <div><span class="label">Screen</span><span id="screen-status">—</span></div>
+        <div><span class="label">Item</span><span id="item-status">—</span></div>
+        <div><span class="label">Section</span><span id="section-status">—</span></div>
+        <div><span class="label">Last call</span><span id="call-status">—</span></div>
+      </section>
+
+      <section class="card actions">
+        <div class="section-head"><h2>Developer</h2></div>
+        <div class="actions-row">
+          <button id="add-btn">Add dummy item</button>
+          <button id="reset-btn" class="ghost">Reset storage &amp; reload</button>
+        </div>
+      </section>
+    </div>
   </main>
 `
 
@@ -84,13 +94,30 @@ const debugLog = document.querySelector<HTMLDivElement>('#debug-log')!
 const clearLogButton = document.querySelector<HTMLButtonElement>('#clear-log-btn')!
 const itemCount = document.querySelector<HTMLSpanElement>('#item-count')!
 const itemList = document.querySelector<HTMLOListElement>('#item-list')!
+const viewNotes = document.querySelector<HTMLDivElement>('#view-notes')!
+const viewSettings = document.querySelector<HTMLDivElement>('#view-settings')!
+const viewTabs = document.querySelectorAll<HTMLButtonElement>('.view-tab')
 
 installDebugConsole(debugLog, clearLogButton)
+
+function setView(view: 'notes' | 'settings') {
+  viewNotes.hidden = view !== 'notes'
+  viewSettings.hidden = view !== 'settings'
+  viewTabs.forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.view === view)
+  })
+}
+
+viewTabs.forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const v = btn.dataset.view === 'settings' ? 'settings' : 'notes'
+    setView(v)
+  })
+})
 
 const apiKeyInput = document.querySelector<HTMLInputElement>('#api-key-input')!
 const apiKeySave = document.querySelector<HTMLButtonElement>('#api-key-save')!
 const apiKeyStatus = document.querySelector<HTMLSpanElement>('#api-key-status')!
-const modeSelect = document.querySelector<HTMLSelectElement>('#mode-select')!
 const fileInput = document.querySelector<HTMLInputElement>('#file-input')!
 const fileBtn = document.querySelector<HTMLButtonElement>('#file-btn')!
 const urlInput = document.querySelector<HTMLInputElement>('#url-input')!
@@ -109,10 +136,6 @@ apiKeySave.addEventListener('click', () => {
   refreshKeyStatus()
 })
 
-function currentMode(): Mode {
-  return modeSelect.value === 'long' ? 'long' : 'short'
-}
-
 function setIngestBusy(busy: boolean, message: string) {
   ingestStatus.textContent = message
   fileBtn.disabled = busy
@@ -127,7 +150,7 @@ fileBtn.addEventListener('click', async () => {
   }
   setIngestBusy(true, `Summarizing ${file.name}…`)
   try {
-    const item = await ingestFile(file, currentMode())
+    const item = await ingestFile(file)
     console.info(`ingestFile: ${item.title}`)
     location.reload()
   } catch (err) {
@@ -145,7 +168,7 @@ urlBtn.addEventListener('click', async () => {
   }
   setIngestBusy(true, `Summarizing ${url}…`)
   try {
-    const item = await ingestLink(url, currentMode())
+    const item = await ingestLink(url)
     console.info(`ingestLink: ${item.title}`)
     location.reload()
   } catch (err) {
@@ -196,6 +219,9 @@ function renderItemList(items: Item[], state: AppState) {
             <span class="type">${it.type}</span>
           </div>
           <div class="meta">${it.sections.length} sections · ${formatTimestamp(it.createdAt)}</div>
+          <div class="item-actions">
+            <button class="ghost slim" data-action="delete" data-id="${escapeHtml(it.id)}" type="button">Delete</button>
+          </div>
         </li>
       `
     })
@@ -252,6 +278,19 @@ async function main() {
     callStatus.textContent = state.lastCall ?? '—'
     renderItemList(state.items, state)
   }
+
+  itemList.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement | null
+    const btn = target?.closest<HTMLButtonElement>('[data-action="delete"]')
+    if (!btn) return
+    const id = btn.dataset.id
+    if (!id) return
+    if (!window.confirm('Delete this note?')) return
+    const next = removeItem(id)
+    state.items = next
+    if (state.itemIndex >= next.length) state.itemIndex = Math.max(0, next.length - 1)
+    state.onChange?.()
+  })
 
   renderItemList(state.items, state)
   state.onChange()

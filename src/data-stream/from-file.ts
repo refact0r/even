@@ -1,23 +1,26 @@
 import { generateItem, type ChatMessage, type Mode, type OpenRouterPlugin } from '../client/client'
 import { addItem } from '../store'
 import type { Item } from '../types'
+import { pickTextMode } from './mode'
 
 const MAX_TEXT_CHARS = 60_000
 const MAX_BINARY_BYTES = 20 * 1024 * 1024
 
 type Kind = 'text' | 'image' | 'pdf'
 
-export async function ingestFile(file: File, mode: Mode): Promise<Item> {
+export async function ingestFile(file: File): Promise<Item> {
   const name = file.name || 'untitled'
   const kind = detectKind(file, name)
   if (!kind) throw new Error(`Unsupported file type: ${file.type || name}`)
 
   let messages: ChatMessage[]
   let plugins: OpenRouterPlugin[] | undefined
+  let mode: Mode = 'long'
 
   if (kind === 'text') {
     const text = (await file.text()).trim()
     if (!text) throw new Error('File is empty')
+    mode = pickTextMode(text)
     const truncated = text.length > MAX_TEXT_CHARS ? text.slice(0, MAX_TEXT_CHARS) : text
     messages = [
       {

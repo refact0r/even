@@ -1,8 +1,8 @@
-import { generateItem, type Mode } from '../client/client'
+import { generateItem } from '../client/client'
 import { addItem } from '../store'
 import type { Item } from '../types'
 
-export async function ingestLink(url: string, mode: Mode): Promise<Item> {
+export async function ingestLink(url: string): Promise<Item> {
   const clean = url.trim()
   let parsed: URL
   try {
@@ -15,7 +15,7 @@ export async function ingestLink(url: string, mode: Mode): Promise<Item> {
   }
 
   const item = await generateItem({
-    mode,
+    mode: 'long',
     messages: [
       {
         role: 'user',

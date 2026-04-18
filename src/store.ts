@@ -111,6 +111,12 @@ export function addItem(item: Item) {
   markRecent(item.id)
 }
 
+export function removeItem(id: string): Item[] {
+  const items = loadItems().filter((it) => it.id !== id)
+  saveItems(items)
+  return items
+}
+
 export function markRecent(id: string) {
   localStorage.setItem(RECENT_KEY, JSON.stringify({ id, t: Date.now() }))
 }

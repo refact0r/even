@@ -223,6 +223,171 @@ rule. Ping me with any failures and I'll debug.
 
 **Follow-ups if needed:** switch PDF engine to `mistral-ocr` for scanned PDFs (paid), or `native` for models that parse PDFs directly (Claude, Gemini).
 
+---
+
+# Phase 2 — Mode restructure (always-lead Summary + auto heuristic)  ✅ DONE
+
+**Built (Steps 8–12):**
+- Both prompts rewritten: short-form now requires a single `heading: "Summary"` section (40–80 words). Long-form requires `sections[0].heading === "Summary"` (40–80 word recap) followed by 2–6 chapter sections with distinct 1–3 word headings.
+- `validateItem` in [client.ts](src/client/client.ts) enforces `sections[0].heading.toLowerCase() === 'summary'` and normalizes the stored heading to the literal `"Summary"`. Long-form capped at 7 sections.
+- New [src/data-stream/mode.ts](src/data-stream/mode.ts) exports `pickTextMode(text)` → `short` when word count < 250, else `long`.
+- [from-file.ts](src/data-stream/from-file.ts) applies the heuristic on the text branch only. Image/PDF branches default to `long` (no word count available without parsing).
+- [from-link.ts](src/data-stream/from-link.ts) dropped its `mode` parameter and always requests `long` (URL body isn't available client-side without CORS-bound fetching).
+- [main.ts](src/main.ts) + [style.css](src/style.css): mode `<select>` removed. Ingest card now shows a one-line hint describing the auto behavior. Pipelines called without `mode`.
+- Typecheck + `npm run build` clean.
+
+## Goal
+
+Every item starts with a first section literally titled **"Summary"** — a single short paragraph, always visible first in overview. Remove the short/long toggle from the UI. Auto-detect:
+
+- **Short path** (single Summary section, no chapters): triggered when the input is **text-based AND under 250 words**. Covers short `.txt` files and short URL bodies.
+- **Long path** (Summary + 2–6 chapter sections): everything else (long text, images, PDFs, URLs ≥ 250 words).
+
+The Summary section acts like the old short-form content; the chapters are unchanged in spirit but come after it.
+
+## Step 8 — Prompt rewrite
+
+**Files:** `src/client/prompts/short-form.txt`, `src/client/prompts/long-form.txt`
+
+- `short-form.txt`: single-section output, section heading MUST be the literal word `Summary`. Otherwise unchanged.
+- `long-form.txt`: sections array is now 3–7 elements as before, but **element 0 MUST have `heading: "Summary"` and be a short 40–80-word recap of the whole piece**. Elements 1..N are chapter sections as before (1–3 word headings, distinct).
+
+## Step 9 — Client-side validator
+
+**File:** `src/client/client.ts`
+
+- `validateItem` stays mode-aware but gains one new rule: **first section's heading must equal `"Summary"`** (case-insensitive match, normalize to title-case on the way into storage).
+- Long-form count range widened to 3–7 (was 3–7 already — confirm rules still allow Summary + 2–6 chapters).
+
+## Step 10 — Word-count heuristic
+
+**File:** `src/data-stream/from-file.ts` and `src/data-stream/from-link.ts`
+
+- Helper `pickMode(input): Mode` lives in a small shared module (`src/data-stream/mode.ts`). Returns `"short"` only when:
+  - `input.kind === "text"` AND
+  - word count (split on whitespace) < 250.
+  - Otherwise `"long"`.
+- `from-file`: applies after reading the text. Images/PDFs bypass → always long.
+- `from-link`: no access to the URL body at request time, so URLs always go `long`. We could fetch the URL client-side first for word-counting but that adds CORS headaches; long-by-default is the sane choice.
+
+## Step 11 — UI cleanup
+
+**File:** `src/main.ts`, `src/style.css`
+
+- Remove the mode `<select>` and its label row.
+- Remove `currentMode()` in handlers; call the pipelines without the mode arg (pipelines pick internally).
+- Update the ingest card to state the behavior in one line: "Short inputs get a single Summary; longer inputs get a Summary plus chapter sections."
+
+## Step 12 — Typecheck + build + manual test
+
+- `tsc --noEmit` and `npm run build` clean.
+- Manual: short .txt → single-Summary item. Long .txt → Summary + chapters. Image → Summary + chapters. PDF → Summary + chapters. URL → Summary + chapters.
+
+---
+
+# Phase 3 — Settings view + delete + list actions  ✅ DONE
+
+**Built (Steps 13–16):**
+- Header now has a `Notes` / `Settings` tab nav; `setView()` toggles `hidden` on two `<div>` wrappers. Memory-only; reloads land on Notes.
+- Notes view: Upload card (file + URL inputs), Notes list, Debug console.
+- Settings view: OpenRouter API key card, Glasses status telemetry, Developer actions (dummy-add, reset storage).
+- `removeItem(id)` added to [store.ts](src/store.ts). Stored items render a per-row Delete button; click → `confirm()` → filter → in-place re-render (no reload). `state.itemIndex` clamps to the new list length.
+- New CSS for `.view-nav`, `.view-tab.active`, `.actions-row`, `.item-actions`.
+- Typecheck + `npm run build` clean.
+
+## Goal
+
+Split the webView into two views so the main view is focused on notes, and push every configurable/admin control into Settings. Add a delete action on stored items.
+
+**Decided (locks in your answers):**
+- Main view (`Notes`) = ingest card + debug console + stored-items list (each row now has Export and Delete buttons; Export gets wired in Phase 4).
+- Settings view = OpenRouter API key, Google Drive connect/disconnect (wired in Phase 4), dev buttons (dummy-add, reset storage).
+- Toggle between views via a two-button header nav. No router — in-memory view state, defaults to Notes on reload.
+
+## Step 13 — View switcher scaffolding
+
+**File:** `src/main.ts`, `src/style.css`
+
+- Add a `<nav class="view-nav">` in the header with `Notes` / `Settings` buttons. Active button gets an `.active` class.
+- Two top-level wrappers inside `<main>`: `<div id="view-notes">` and `<div id="view-settings" hidden>`. Swap by toggling the `hidden` attribute.
+- Small `setView('notes' | 'settings')` helper. View state is memory-only; reloads land on Notes.
+
+## Step 14 — Move configurables into Settings
+
+**Files:** `src/main.ts`, `src/style.css`
+
+- Move the OpenRouter API key block (input + save button + key-link + status) into `#view-settings`.
+- Move the status card (bridge / screen / item / section / last-call) into `#view-settings` — it's developer telemetry.
+- Move the Actions card (dummy-add, reset storage) into `#view-settings` under a "Developer" heading.
+- Keep on Notes: ingest card, debug console, stored items.
+- Rename the page header/sub to reflect the cleaner main surface.
+
+## Step 15 — Delete action on stored items
+
+**Files:** `src/store.ts`, `src/main.ts`, `src/style.css`
+
+- Add `removeItem(id: string): Item[]` to `store.ts` — filters, re-saves, returns the new list.
+- Render a small "Delete" ghost button next to each item in the Stored Items list. Click → `window.confirm("Delete this note?")` → `removeItem(id)` → re-render in place (no full `location.reload()` — `renderItemList(loadItems(), state)` is enough).
+- If the deleted item was the currently active one, reset `state.itemIndex` to 0 and call `state.onChange()` so the status mirrors reality.
+
+## Step 16 — Typecheck + build
+
+- `tsc --noEmit` clean; `npm run build` clean. No API key needed to verify this phase; manual smoke test is "toggle views, delete a dummy item, confirm it stays gone after reload."
+
+---
+
+# Phase 4 — Local Markdown export (browser download)
+
+## Goal
+
+Per-item **Export** and **Export all** actions on the Notes view that trigger a browser `.md` download — no accounts, no OAuth, no external services. One file per note; "Export all" fires multiple downloads in a single user gesture (browser prompts once to allow multiple).
+
+No new dependencies. Everything is `Blob` + anchor-click.
+
+## Step 17 — Markdown export module
+
+**File:** `src/client/export.ts` (new)
+
+**Exports:**
+- `itemToMarkdown(item: Item): string` — deterministic formatter:
+
+  ```markdown
+  # <title>
+
+  > Captured <ISO timestamp> · type: <short|long>
+
+  ## Summary
+  <content of sections[0]>
+
+  ## <sections[1].heading>
+  <sections[1].content>
+
+  ...
+  ```
+
+- `downloadItem(item: Item): void` — builds the markdown, wraps in a `Blob`, creates an object URL, triggers an `<a download>` click, revokes the URL on next tick. Filename: `<sanitized-title>-<yyyy-mm-dd>.md`.
+- `downloadAll(items: Item[]): void` — loops over `items` calling `downloadItem`. No zipping; the browser will prompt once for "Allow multiple downloads" the first time, then batch.
+- `sanitizeFilename(name: string): string` — strips `/\\:*?"<>|`, collapses whitespace, truncates to 80 chars, falls back to `untitled` on empty.
+
+## Step 18 — Notes UI: per-item Export + Export all
+
+**Files:** `src/main.ts`, `src/style.css`
+
+- Add a per-item "Export" ghost button on each stored-items `<li>` (sibling to the Delete button from Step 15). Click → `downloadItem(item)`.
+- Add an "Export all" button to the items section header (next to the item count). Click → `downloadAll(loadItems())` when the list is non-empty; no-op otherwise.
+- No auth gating, no disabled state, no Settings wiring — download-to-disk just works.
+
+## Step 19 — Typecheck + build + smoke test
+
+- `tsc --noEmit` and `npm run build` clean.
+- Manual:
+  1. Notes → pick an item → Export → browser saves `<title>-<date>.md`. Open it, confirm the Summary and chapter sections render.
+  2. Export all → browser asks to allow multiple downloads once → every item saved.
+  3. Delete an item locally → already-downloaded file on disk is untouched (downloads are fire-and-forget; we don't track them).
+  4. Rename a note's title in a follow-up ingest (not currently possible) — filenames would diverge, which is fine for v1.
+
+---
+
 ## Out of scope (explicit)
 
 - Item eviction / storage cap.

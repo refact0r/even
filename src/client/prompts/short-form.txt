@@ -7,8 +7,8 @@ Output a JSON object and NOTHING ELSE. No markdown fences, no prose before or af
   "title": "<a short human-readable title, no more than 40 characters>",
   "sections": [
     {
-      "heading": "<a 1-3 word heading>",
-      "content": "<a single tight paragraph, 60-180 words, self-contained>"
+      "heading": "Summary",
+      "content": "<a single tight paragraph, 40-80 words, self-contained>"
     }
   ]
 }
@@ -16,7 +16,8 @@ Output a JSON object and NOTHING ELSE. No markdown fences, no prose before or af
 Hard rules:
 - "type" MUST be the literal string "short".
 - "sections" MUST be an array of exactly one element.
+- The one section's "heading" MUST be the literal string "Summary".
+- "content" MUST be plain text, 40-80 words. No markdown, no lists, no line breaks.
 - "title" MUST be a non-empty string. Prefer short titles; the HUD truncates on render.
-- "content" MUST be plain text. No markdown, no lists, no line breaks.
-- Do not invent facts. If the source is empty or unreadable, return a JSON object with title "Unreadable" and a content field explaining that the source could not be summarized.
+- Do not invent facts. If the source is empty or unreadable, return a JSON object with title "Unreadable" and a Summary section explaining that the source could not be summarized.
 - Do not wrap the JSON in code fences. Return the raw JSON object only.
