@@ -1,0 +1,82 @@
+Here is the shortened, scannable list of the Even Realities G2 projects, stripped down to just the app names and their core features for your other agent:
+
+### **AI & Agents**
+* [cite_start]**EvenClaw - Openclaw Client:** OpenClaw native plugin with full session management, text-to-speech, real-time streaming text, and tool call feeds. [cite: 9]
+* [cite_start]**soPHICON Φ:** Delivers curated philosophical quotes from 17 philosophers based on mindset, featuring an OpenAI integration to chat with AI personas of the philosophers. [cite: 10, 11, 12, 15]
+* [cite_start]**OpenVide & EvenGoogleHub:** Developer workflow HUDs to connect to local/remote servers, manage AI coding agents, browse files, and stream live terminal output. [cite: 16, 17, 18, 19]
+
+### **Music & Audio**
+* [cite_start]**DisplayPlus - Music (and Lyric Lens Layout):** Displays currently playing Spotify tracks, playback controls, progress bars, and lyrics. [cite: 20, 21, 22]
+* [cite_start]**Lyric Lens:** Syncs with Spotify to display real-time, line-by-line lyrics on the HUD. [cite: 22]
+* [cite_start]**Sing with You:** Minimalist lyrics and chord display for musicians that auto-scrolls by recognizing your singing voice. [cite: 24, 25, 26]
+* [cite_start]**Invisible Tuner:** Chromatic tuner that detects pitch from the microphone and displays the nearest note and cent deviation. [cite: 26, 27]
+* [cite_start]**G2 Music Player:** Spotify controller with simple scroll-and-tap controls for playback, battery, and track info. [cite: 28, 29]
+
+### **Reading & Browsing**
+* [cite_start]**rdt:** A rudimentary Reddit reader. [cite: 30]
+* [cite_start]**Books & ePub Reader:** Browse and read over 70,000 free public domain books from Project Gutenberg or import your own ePub files. [cite: 32, 34, 35]
+* [cite_start]**Aozora-bunko Reader:** A Japanese public-domain book reader. [cite: 36]
+* [cite_start]**Choose Your Own Adventure Type Book:** An interactive CYOA-style story. [cite: 37, 38]
+
+### **Smart Home & Lifestyle**
+* [cite_start]**Itsyhome & Even Home:** HomeKit and Home Assistant device controls for toggling lights, scenes, and managing states. [cite: 42, 48, 49]
+* [cite_start]**EvenSmartThings:** Control SmartThings devices, scenes, and rooms with scroll and tap actions. [cite: 43, 44]
+* [cite_start]**Stillness Engine:** Ambient, guided breathing protocol sessions with deterministic lifecycle behavior. [cite: 46, 47]
+* [cite_start]**EvenPlants:** Plant care companion for tracking watering schedules, health status, and care history. [cite: 50, 51]
+* [cite_start]**EvenKitchen:** Hands-free cooking companion with step-by-step instructions, independent timers, and AI-powered recipe imports from any URL. [cite: 52, 53]
+
+### **Games**
+* [cite_start]**Star chart:** A sky map utilizing head movements to display and identify night sky objects, featuring OpenAI integration for insights. [cite: 56, 57, 58]
+* [cite_start]**Arcade Classics (Snake, Pong, Tetris, Arkanoid):** Recreations of classic games featuring shared high scores. [cite: 62, 63]
+* [cite_start]**EvenChess:** Play chess against Stockfish or practice coordinates and tactics using scroll/tap controls. [cite: 64, 65, 66]
+* [cite_start]**EvenSolitaire:** Klondike Solitaire managed from a HUD-first interface with an optional Move Assist feature. [cite: 66, 67]
+* [cite_start]**EvenRoads:** A Crossy Road/Frogger-style lane navigation game. [cite: 68, 69]
+* [cite_start]**Make20:** A 2048-style puzzle game where players merge numbers up to a maximum of 20. [cite: 70, 71]
+* [cite_start]**Evengotchi:** A Tamagotchi-inspired virtual pet you can feed, clean, and play mini-games with as it evolves. [cite: 72]
+
+### **Productivity & Utilities**
+* [cite_start]**Flashcards:** Spaced repetition flashcard app with Anki deck import support. [cite: 74]
+* [cite_start]**Sensemaker:** Audio capture app that builds a relational context database to organize tasks and draft outputs from rambling voice inputs. [cite: 75, 76, 77]
+* [cite_start]**Tesla & Tesla Controls:** Apps to manage Tesla vehicles (climate, charging, locks, trunk) and view live battery and location stats without pulling out a phone. [cite: 77, 78, 79, 91, 92]
+* [cite_start]**Weather:** Displays weekly/hourly forecasts, current conditions, and precipitation/wind charts. [cite: 80]
+* [cite_start]**Itsypad:** Companion app for macOS to browse, read, and create voice notes. [cite: 81, 82]
+* [cite_start]**Timer & Even-R-Clock:** Lightweight countdown timers, stopwatches, and alarms optimized for the G2 display. [cite: 84, 85, 92, 93, 94]
+* [cite_start]**PowerSlides:** Remote control Google Slides decks and view speaker notes directly in the glasses. [cite: 87, 88]
+* [cite_start]**EvenClaw:** Connects OpenClaw with the glasses and Bluetooth headphones for ambient AI assistance. [cite: 88]
+* [cite_start]**Even Bridge:** Speech-to-text plugin that transcribes voice and sends messages to Telegram, Slack, and Gmail. [cite: 89, 90]
+* [cite_start]**Whoop Even G2:** Displays live key recovery metrics and summaries from a WHOOP strap. [cite: 92]
+* [cite_start]**Even World Clock:** Tracks international time zones for travel or global meetings. [cite: 96, 97]
+* [cite_start]**Preflight:** Displays crucial flight release data (fuel, departure, crew) hands-free for airline pilots during pre-flight. [cite: 98, 99, 100]
+* [cite_start]**sommNI:** Lightweight wine reference app for hospitality workers to quickly view wine notes without distracting from guests. [cite: 103, 104]
+* [cite_start]**Even-Calc:** Basic calculator operated via headset controllers or voice input. [cite: 107, 108]
+* [cite_start]**Todoist:** A "Focus Mode" task manager that isolates a single objective on the HUD and blinks every 5 minutes to maintain attention. [cite: 109, 111]
+* [cite_start]**Visionote:** Displays phone images (like Wi-Fi passwords or instructions) on the HUD with scrolling, resizing, and rotation support. [cite: 112, 113, 115]
+* [cite_start]**Mirai's AR Radio:** AI character that broadcasts news and weather, acts as a voice chat assistant, and runs quizzes. [cite: 116, 117, 118]
+* [cite_start]**DANMAKU for Even:** Syncs and displays YouTube/Niconico comments as a scrolling marquee across the lens. [cite: 119]
+* [cite_start]**Journey:** Minimalist tracker for habits, health milestones, and personal projects. [cite: 120, 121]
+* [cite_start]**EvenMarket:** Real-time market watchlist and candlestick charts for stocks, forex, and commodities. [cite: 124, 125]
+* [cite_start]**My amazing Creation:** A daily routine productivity tool. [cite: 126]
+* [cite_start]**Greensky:** Bluesky social media client to generate text posts via voice, view timelines, and interact with posts. [cite: 127, 128]
+* [cite_start]**Language learning + translation:** Live translation that distinguishes speakers and provides real-time vocabulary and grammar tips. [cite: 129, 130]
+* [cite_start]**TCG lens:** Tracks Pokemon and One Piece TCG card prices, allowing users to browse card images and market prices hands-free. [cite: 133, 134, 135]
+* [cite_start]**EvenBrowser:** Web browser that extracts readable text from URLs, formats it for the HUD, and supports history and link navigation. [cite: 138, 139, 140]
+* [cite_start]**VoiceInk:** Real-time Chinese speech-to-text transcriber with smart silence detection. [cite: 142, 143, 144]
+* [cite_start]**EvenTwitch Chat:** Displays live Twitch chat, subscriptions, and Bits while streaming. [cite: 145, 146]
+* [cite_start]**Even-LotH:** Prayer app for the Liturgy of the Hours. [cite: 148]
+* [cite_start]**Pomodoro:** 25-minute work session timer utilizing pixel art icons and progress bars. [cite: 148, 149]
+* [cite_start]**Docs 4 Even G2:** Read Google Docs hands-free. [cite: 150, 151]
+* [cite_start]**ValidateAI:** Conversation intelligence app that transcribes speech to run live analyzers for fact-checking, intent classification, and stress cues. [cite: 152, 154]
+
+### **Travel & Navigation**
+* [cite_start]**Travel Companion:** Tracks travel routes, displays live flight gate/delay data, and offers a packing checklist. [cite: 38, 39, 40]
+* [cite_start]**Wondereye - Travel:** Identifies nearby landmarks via phone GPS and displays AI-generated background descriptions. [cite: 157, 158, 159, 160]
+* [cite_start]**MoonWalker:** Distraction-free navigation showing only a directional arrow and distance, accompanied by rotating Stoic quotes. [cite: 160, 161, 162]
+* [cite_start]**ContextTalk:** Listens to foreign speech, translates it, and generates personalized, context-aware replies for you in the other person's language. [cite: 165, 166, 167]
+* [cite_start]**SubwayLens:** Displays the next MTA train times in both directions for your favorite NYC subway stations. [cite: 170, 171]
+
+### **Sports & Fitness**
+* [cite_start]**Pickleball:** Score tracker that remembers the score and who is currently serving. [cite: 174, 175]
+* [cite_start]**EvenWorkout:** Gym companion to track sets, reps, and rest periods, and view workout routines. [cite: 175, 176, 177]
+* [cite_start]**Activity Tracker:** Tracks runs, bike rides, and walks with live HUD stats (pace, distance, map) and auto-uploads to Strava. [cite: 178, 179, 181, 182]
+* [cite_start]**Skydive:** Altimeter and jump tracker with visual altitude alerts, auto-detection of freefall/canopy, and a jump log. [cite: 184, 185, 186, 187, 190]
+* [cite_start]**Media Controller:** View what is currently playing and control phone media (Spotify, audiobooks) hands-free. [cite: 191, 192]
