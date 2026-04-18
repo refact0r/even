@@ -207,9 +207,24 @@ rule. Ping me with any failures and I'll debug.
 
 ---
 
+## Step 7 — Image + PDF support in `from-file`  ✅ DONE
+
+**Files:** [src/client/client.ts](src/client/client.ts), [src/data-stream/from-file.ts](src/data-stream/from-file.ts), [src/main.ts](src/main.ts)
+
+**Problem:** file input rejected anything that wasn't `.txt`, so PNG/PDF uploads threw `Unsupported file type` before reaching the model.
+
+**Built:**
+- `ChatMessage.content` now accepts `string | ContentPart[]`. New `ContentPart` union covers `text`, `image_url`, and `file` parts per the OpenRouter content-parts spec.
+- `generateItem` takes an optional `plugins` array and attaches it to the request body when set.
+- `ingestFile` detects kind from MIME + extension (`text`, `image`, `pdf`). Text path unchanged. Image path sends base64 data URL as an `image_url` part (handled natively by `gpt-4o-mini`). PDF path sends a `file` part and enables `{ id: 'file-parser', pdf: { engine: 'pdf-text' } }` so OpenRouter extracts text before the model sees it.
+- 20 MB hard cap on binary uploads.
+- File input `accept` widened to `.txt,.pdf,.png,.jpg,.jpeg,.webp,.gif`.
+- Typecheck + `npm run build` clean.
+
+**Follow-ups if needed:** switch PDF engine to `mistral-ocr` for scanned PDFs (paid), or `native` for models that parse PDFs directly (Claude, Gemini).
+
 ## Out of scope (explicit)
 
-- `from-image.ts` (images / PDFs) — next milestone.
 - Item eviction / storage cap.
 - Server-side URL fetch proxy (only if the default model can't browse).
 - Streaming responses.
