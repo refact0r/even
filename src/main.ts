@@ -2,6 +2,7 @@ import './style.css'
 import { waitForEvenAppBridge } from '@evenrealities/even_hub_sdk'
 import { addItem, consumeRecent, loadItems, resetStorage } from './store'
 import { GlassesApp, type AppState, type Screen } from './glasses'
+import { installDebugConsole } from './debug-console'
 import type { Item } from './types'
 
 const app = document.querySelector<HTMLDivElement>('#app')!
@@ -9,10 +10,10 @@ app.innerHTML = `
   <main>
     <header>
       <h1>Universal Reader</h1>
-      <p class="sub">Phone-side control pane. Glasses show the real UI.</p>
+      <p class="sub">Seed local items here. The glasses are the actual reader UI.</p>
     </header>
 
-    <section class="status">
+    <section class="card status">
       <div><span class="label">Bridge</span><span id="bridge-status">connecting…</span></div>
       <div><span class="label">Screen</span><span id="screen-status">—</span></div>
       <div><span class="label">Item</span><span id="item-status">—</span></div>
@@ -20,13 +21,24 @@ app.innerHTML = `
       <div><span class="label">Last call</span><span id="call-status">—</span></div>
     </section>
 
-    <section class="actions">
+    <section class="card actions">
       <button id="add-btn">Add dummy item (skip home on next boot)</button>
       <button id="reset-btn" class="ghost">Reset storage &amp; reload</button>
     </section>
 
-    <section class="items">
-      <h2>Items</h2>
+    <section class="card debug">
+      <div class="section-head">
+        <h2>Debug Console</h2>
+        <button id="clear-log-btn" class="ghost slim" type="button">Clear</button>
+      </div>
+      <div id="debug-log" class="debug-log" role="log" aria-live="polite"></div>
+    </section>
+
+    <section class="card items">
+      <div class="section-head">
+        <h2>Stored Items</h2>
+        <span id="item-count">0</span>
+      </div>
       <ol id="item-list"></ol>
     </section>
   </main>
@@ -37,7 +49,12 @@ const screenStatus = document.querySelector<HTMLSpanElement>('#screen-status')!
 const itemStatus = document.querySelector<HTMLSpanElement>('#item-status')!
 const sectionStatus = document.querySelector<HTMLSpanElement>('#section-status')!
 const callStatus = document.querySelector<HTMLSpanElement>('#call-status')!
+const debugLog = document.querySelector<HTMLDivElement>('#debug-log')!
+const clearLogButton = document.querySelector<HTMLButtonElement>('#clear-log-btn')!
+const itemCount = document.querySelector<HTMLSpanElement>('#item-count')!
 const itemList = document.querySelector<HTMLOListElement>('#item-list')!
+
+installDebugConsole(debugLog, clearLogButton)
 
 document.querySelector<HTMLButtonElement>('#reset-btn')!.addEventListener('click', () => {
   resetStorage()
@@ -69,14 +86,17 @@ document.querySelector<HTMLButtonElement>('#add-btn')!.addEventListener('click',
 })
 
 function renderItemList(items: Item[], state: AppState) {
+  itemCount.textContent = `${items.length} total`
   itemList.innerHTML = items
     .map((it, i) => {
-      const active = i === state.itemIndex && state.screen !== 'home' ? ' class="active"' : ''
-      const sections = it.sections.map((s) => `<li>${escapeHtml(s.heading)}</li>`).join('')
+      const active = i === state.itemIndex ? ' class="active"' : ''
       return `
         <li${active}>
-          <div class="title">${escapeHtml(it.title)} <span class="type">(${it.type})</span></div>
-          <ul class="sections">${sections}</ul>
+          <div class="title-row">
+            <span class="title">${escapeHtml(it.title)}</span>
+            <span class="type">${it.type}</span>
+          </div>
+          <div class="meta">${it.sections.length} sections · ${formatTimestamp(it.createdAt)}</div>
         </li>
       `
     })
@@ -96,9 +116,18 @@ function escapeHtml(s: string): string {
 }
 
 function screenLabel(s: Screen): string {
-  if (s === 'home') return 'home (list)'
-  if (s === 'overview') return 'overview (sections + preview)'
-  return 'reading (full text)'
+  if (s === 'home') return 'Home'
+  if (s === 'overview') return 'Overview'
+  return 'Reading'
+}
+
+function formatTimestamp(value: number): string {
+  return new Date(value).toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 
 async function main() {

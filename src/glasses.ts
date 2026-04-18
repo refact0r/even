@@ -4,6 +4,7 @@ import {
   RebuildPageContainer,
   ListContainerProperty,
   ListItemContainerProperty,
+  List_ItemEvent,
   TextContainerProperty,
   TextContainerUpgrade,
   OsEventTypeList,
@@ -138,6 +139,8 @@ export class GlassesApp {
   private bridge: EvenAppBridge
   private state: AppState
   private started = false
+  private rendering = false
+  private activeContainerName: 'home' | 'sections' | 'reading' | null = null
 
   constructor(bridge: EvenAppBridge, state: AppState) {
     this.bridge = bridge
@@ -146,8 +149,23 @@ export class GlassesApp {
 
   async start() {
     this.bridge.onEvenHubEvent((evt) => {
-      if (evt.listEvent) this.handleList(evt.listEvent.eventType, evt.listEvent.currentSelectItemIndex ?? 0)
-      else if (evt.textEvent) this.handleText(evt.textEvent.eventType)
+      if (evt.listEvent) {
+        this.logEvent('list', evt.listEvent)
+        const idx = this.normalizeListIndex(evt.listEvent)
+        this.handleList(
+          this.normalizeListEventType(evt.listEvent),
+          idx,
+          evt.listEvent.containerName,
+        )
+      } else if (evt.textEvent) {
+        this.logEvent('text', evt.textEvent)
+        this.handleText(evt.textEvent.eventType, evt.textEvent.containerName)
+        this.handleGenericInput(evt.textEvent.eventType, evt.textEvent.containerName)
+      } else if (evt.sysEvent) {
+        this.logEvent('sys', evt.sysEvent)
+        this.handleSystem(evt.sysEvent.eventType)
+        this.handleGenericInput(evt.sysEvent.eventType)
+      }
     })
     await this.renderCurrent()
   }
@@ -164,90 +182,203 @@ export class GlassesApp {
   }
 
   private async pushHome() {
+    if (this.rendering) return false
+    this.rendering = true
     const list = homeList(this.state.items)
-    if (!this.started) {
-      const r = await this.bridge.createStartUpPageContainer(
-        new CreateStartUpPageContainer({ containerTotalNum: 1, listObject: [list] }),
-      )
-      this.state.lastCall = `createStartUpPageContainer(home) → ${r}`
-      console.log('[glasses]', this.state.lastCall)
-      this.started = true
-    } else {
-      const r = await this.bridge.rebuildPageContainer(
-        new RebuildPageContainer({ containerTotalNum: 1, listObject: [list] }),
-      )
-      this.state.lastCall = `rebuildPageContainer(home) → ${r}`
-      console.log('[glasses]', this.state.lastCall)
+    try {
+      const ok = await this.renderPage('home', {
+        containerTotalNum: 1,
+        listObject: [list],
+      })
+      if (!ok) return false
+      this.state.screen = 'home'
+      this.activeContainerName = 'home'
+      return true
+    } finally {
+      this.rendering = false
     }
-    this.state.screen = 'home'
   }
 
   private async pushOverview() {
     const item = this.state.items[this.state.itemIndex]
+    if (!item) return this.pushHome()
+    if (this.rendering) return false
+    this.rendering = true
     const list = overviewList(item, this.state.sectionIndex)
     const preview = overviewPreview(
       item,
       this.state.sectionIndex,
       this.started ? PREVIEW_CHARS : STARTUP_TEXT_CHARS,
     )
-    if (!this.started) {
-      const r = await this.bridge.createStartUpPageContainer(
-        new CreateStartUpPageContainer({
-          containerTotalNum: 2,
-          listObject: [list],
-          textObject: [preview],
-        }),
-      )
-      this.state.lastCall = `createStartUpPageContainer(overview) → ${r}`
-      console.log('[glasses]', this.state.lastCall)
-      this.started = true
-    } else {
-      const r = await this.bridge.rebuildPageContainer(
-        new RebuildPageContainer({
-          containerTotalNum: 2,
-          listObject: [list],
-          textObject: [preview],
-        }),
-      )
-      this.state.lastCall = `rebuildPageContainer(overview) → ${r}`
-      console.log('[glasses]', this.state.lastCall)
+    try {
+      const ok = await this.renderPage('overview', {
+        containerTotalNum: 2,
+        listObject: [list],
+        textObject: [preview],
+      })
+      if (!ok) return false
+      this.state.screen = 'overview'
+      this.activeContainerName = 'sections'
+      return true
+    } finally {
+      this.rendering = false
     }
-    this.state.screen = 'overview'
   }
 
   private async pushReading() {
     const item = this.state.items[this.state.itemIndex]
+    if (!item) return this.pushHome()
+    if (this.rendering) return false
+    this.rendering = true
     const text = readingContainer(item, this.state.sectionIndex, READING_CHARS)
-    const r = await this.bridge.rebuildPageContainer(
-      new RebuildPageContainer({ containerTotalNum: 1, textObject: [text] }),
-    )
-    this.state.lastCall = `rebuildPageContainer(reading) → ${r}`
-    console.log('[glasses]', this.state.lastCall)
-    this.state.screen = 'reading'
+    try {
+      const ok = await this.renderPage('reading', {
+        containerTotalNum: 1,
+        textObject: [text],
+      })
+      if (!ok) return false
+      this.state.screen = 'reading'
+      this.activeContainerName = 'reading'
+      return true
+    } finally {
+      this.rendering = false
+    }
   }
 
-  private handleList(et: OsEventTypeList | undefined, idx: number) {
+  private async renderPage(
+    label: Screen,
+    container: {
+      containerTotalNum: number
+      listObject?: ListContainerProperty[]
+      textObject?: TextContainerProperty[]
+    },
+  ) {
+    if (!this.started) {
+      const r = await this.bridge.createStartUpPageContainer(new CreateStartUpPageContainer(container))
+      this.state.lastCall = `createStartUpPageContainer(${label}) → ${r}`
+      console.log('[glasses]', this.state.lastCall)
+      if (r === 0) {
+        this.started = true
+        return true
+      }
+      return false
+    }
+    const r = await this.bridge.rebuildPageContainer(new RebuildPageContainer(container))
+    this.state.lastCall = `rebuildPageContainer(${label}) → ${r}`
+    console.log('[glasses]', this.state.lastCall)
+    return r
+  }
+
+  private resolveIndex(next: number | undefined, current: number, count: number) {
+    if (count <= 0) return -1
+    if (typeof next === 'number' && Number.isFinite(next)) {
+      return Math.min(Math.max(next, 0), count - 1)
+    }
+    return Math.min(Math.max(current, 0), count - 1)
+  }
+
+  private isNavigationEvent(et: OsEventTypeList | undefined) {
+    return (
+      et === OsEventTypeList.CLICK_EVENT ||
+      et === OsEventTypeList.DOUBLE_CLICK_EVENT ||
+      et === OsEventTypeList.SCROLL_TOP_EVENT ||
+      et === OsEventTypeList.SCROLL_BOTTOM_EVENT
+    )
+  }
+
+  private normalizeListEventType(evt: List_ItemEvent) {
+    if (evt.eventType !== undefined) return evt.eventType
+    if (evt.containerName) {
+      console.debug('[nav:list-infer-click]', {
+        containerName: evt.containerName,
+        idx: evt.currentSelectItemIndex,
+      })
+      return OsEventTypeList.CLICK_EVENT
+    }
+    return undefined
+  }
+
+  private normalizeListIndex(evt: List_ItemEvent) {
+    const idx = evt.currentSelectItemIndex
+    if (typeof idx !== 'number' || !Number.isFinite(idx)) {
+      if (evt.eventType === undefined) {
+        console.debug('[nav:list-infer-current-index]', {
+          containerName: evt.containerName,
+          currentItemIndex: this.state.itemIndex,
+          currentSectionIndex: this.state.sectionIndex,
+          screen: this.state.screen,
+        })
+        return this.state.screen === 'overview' ? this.state.sectionIndex : this.state.itemIndex
+      }
+      return undefined
+    }
+    if (evt.eventType === undefined && idx >= 1) {
+      const normalized = idx - 1
+      console.debug('[nav:list-infer-index]', {
+        containerName: evt.containerName,
+        rawIndex: idx,
+        normalizedIndex: normalized,
+      })
+      return normalized
+    }
+    return idx
+  }
+
+  private handleGenericInput(et: OsEventTypeList | undefined, containerName?: string) {
+    if (!this.isNavigationEvent(et)) return
+    if (this.state.screen === 'reading') {
+      this.handleText(et, containerName)
+      return
+    }
+    this.handleList(et, undefined, containerName)
+  }
+
+  private handleList(et: OsEventTypeList | undefined, idx: number | undefined, containerName: string | undefined) {
     if (et === undefined) return
+    console.debug('[nav:list]', {
+      screen: this.state.screen,
+      activeContainerName: this.activeContainerName,
+      eventContainerName: containerName,
+      idx,
+      et,
+    })
     if (this.state.screen === 'home') this.handleHomeList(et, idx)
     else if (this.state.screen === 'overview') this.handleOverviewList(et, idx)
   }
 
-  private handleHomeList(et: OsEventTypeList, idx: number) {
+  private handleHomeList(et: OsEventTypeList, idx: number | undefined) {
+    const nextIndex = this.resolveIndex(idx, this.state.itemIndex, this.state.items.length)
+    if (et === OsEventTypeList.SCROLL_TOP_EVENT || et === OsEventTypeList.SCROLL_BOTTOM_EVENT) {
+      if (nextIndex >= 0) {
+        this.state.itemIndex = nextIndex
+        this.notify()
+      }
+      return
+    }
     if (et === OsEventTypeList.CLICK_EVENT) {
-      if (!this.state.items[idx]) return
-      this.state.itemIndex = idx
+      if (nextIndex < 0 || !this.state.items[nextIndex]) return
+      this.state.itemIndex = nextIndex
       this.state.sectionIndex = 0
-      void this.pushOverview().then(() => this.notify())
+      console.debug('[nav:home-click]', {
+        nextIndex,
+        itemTitle: this.state.items[nextIndex]?.title,
+      })
+      void this.pushOverview().then((ok) => {
+        console.debug('[nav:home-click-result]', { ok, screen: this.state.screen })
+        this.notify()
+      })
     } else if (et === OsEventTypeList.DOUBLE_CLICK_EVENT) {
       void this.bridge.shutDownPageContainer(1)
     }
   }
 
-  private handleOverviewList(et: OsEventTypeList, idx: number) {
+  private handleOverviewList(et: OsEventTypeList, idx: number | undefined) {
     const item = this.state.items[this.state.itemIndex]
     if (!item) return
+    const nextIndex = this.resolveIndex(idx, this.state.sectionIndex, item.sections.length)
     if (et === OsEventTypeList.CLICK_EVENT) {
-      this.state.sectionIndex = Math.min(idx, item.sections.length - 1)
+      if (nextIndex < 0) return
+      this.state.sectionIndex = nextIndex
       void this.pushReading().then(() => this.notify())
     } else if (et === OsEventTypeList.DOUBLE_CLICK_EVENT) {
       void this.pushHome().then(() => this.notify())
@@ -255,23 +386,45 @@ export class GlassesApp {
       et === OsEventTypeList.SCROLL_TOP_EVENT ||
       et === OsEventTypeList.SCROLL_BOTTOM_EVENT
     ) {
-      const clamped = Math.min(Math.max(idx, 0), item.sections.length - 1)
-      this.state.sectionIndex = clamped
-      void this.bridge.textContainerUpgrade(
-        new TextContainerUpgrade({
-          containerID: OVW_PREVIEW_ID,
-          containerName: 'preview',
-          content: previewText(item, clamped, PREVIEW_CHARS),
-        }),
-      )
-      this.notify()
+      if (nextIndex < 0) return
+      this.state.sectionIndex = nextIndex
+      void this.updateOverviewPreview(item, nextIndex)
     }
   }
 
-  private handleText(et: OsEventTypeList | undefined) {
+  private async updateOverviewPreview(item: Item, idx: number) {
+    const ok = await this.bridge.textContainerUpgrade(
+      new TextContainerUpgrade({
+        containerID: OVW_PREVIEW_ID,
+        containerName: 'preview',
+        content: previewText(item, idx, PREVIEW_CHARS),
+      }),
+    )
+    this.state.lastCall = `textContainerUpgrade(preview) → ${ok}`
+    console.log('[glasses]', this.state.lastCall)
+    this.notify()
+  }
+
+  private handleText(et: OsEventTypeList | undefined, containerName: string | undefined) {
     if (this.state.screen !== 'reading') return
+    console.debug('[nav:text]', {
+      screen: this.state.screen,
+      activeContainerName: this.activeContainerName,
+      eventContainerName: containerName,
+      et,
+    })
     if (et === OsEventTypeList.DOUBLE_CLICK_EVENT) {
       void this.pushOverview().then(() => this.notify())
     }
+  }
+
+  private handleSystem(et: OsEventTypeList | undefined) {
+    if (et === OsEventTypeList.FOREGROUND_ENTER_EVENT) {
+      void this.renderCurrent()
+    }
+  }
+
+  private logEvent(kind: 'list' | 'text' | 'sys', payload: object) {
+    console.debug(`[event:${kind}]`, payload)
   }
 }
