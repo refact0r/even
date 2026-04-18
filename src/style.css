@@ -1,0 +1,144 @@
+:root {
+  --bg: #0f1014;
+  --panel: #181a21;
+  --border: #2b2e38;
+  --text: #d2d5dc;
+  --muted: #8a8f9c;
+  --accent: #7dd3a1;
+  --accent-dim: rgba(125, 211, 161, 0.12);
+
+  font:
+    15px/1.5 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+}
+
+#app {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+}
+
+header h1 {
+  font-size: 22px;
+  margin: 0 0 4px;
+  color: var(--accent);
+  letter-spacing: 0.5px;
+}
+
+header .sub {
+  margin: 0 0 24px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+section {
+  margin-bottom: 24px;
+}
+
+.status {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 16px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.status > div {
+  display: flex;
+  gap: 12px;
+}
+
+.status .label {
+  color: var(--muted);
+  width: 72px;
+  flex-shrink: 0;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+button {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 8px 14px;
+  font: inherit;
+  cursor: pointer;
+}
+
+button.ghost {
+  background: transparent;
+  color: var(--muted);
+  border-color: var(--border);
+}
+
+button:hover {
+  filter: brightness(1.15);
+}
+
+h2 {
+  font-size: 14px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 0 0 8px;
+}
+
+#item-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#item-list > li {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 14px;
+}
+
+#item-list > li.active {
+  border-color: var(--accent);
+}
+
+.title {
+  font-weight: 500;
+  color: var(--text);
+}
+
+.type {
+  color: var(--muted);
+  font-size: 12px;
+  margin-left: 6px;
+}
+
+.sections {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.sections li::before {
+  content: '·  ';
+}
