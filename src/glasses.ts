@@ -27,6 +27,7 @@ const PREVIEW_CHARS = 380
 const READING_CHARS = 2000
 const STARTUP_TEXT_BYTES = 999
 const STARTUP_READING_BYTES = 999
+const READING_PAGE_BYTES = 999
 
 export type Screen = 'home' | 'overview' | 'reading'
 
@@ -35,6 +36,7 @@ export interface AppState {
   items: Item[]
   itemIndex: number
   sectionIndex: number
+  readingPageIndex: number
   lastCall?: string
   onChange?: () => void
 }
@@ -54,6 +56,30 @@ function truncBytes(s: string, maxBytes: number): string {
   while (lo <= hi) {
     const mid = Math.floor((lo + hi) / 2)
     const candidate = `${s.slice(0, mid)}…`
+    if (enc.encode(candidate).length <= maxBytes) {
+      best = candidate
+      lo = mid + 1
+    } else {
+      hi = mid - 1
+    }
+  }
+  return best
+}
+
+function byteLength(s: string): number {
+  return new TextEncoder().encode(s).length
+}
+
+function sliceWithinBytes(s: string, maxBytes: number): string {
+  if (!s || maxBytes <= 0) return ''
+  const enc = new TextEncoder()
+  if (enc.encode(s).length <= maxBytes) return s
+  let lo = 0
+  let hi = s.length
+  let best = ''
+  while (lo <= hi) {
+    const mid = Math.floor((lo + hi) / 2)
+    const candidate = s.slice(0, mid)
     if (enc.encode(candidate).length <= maxBytes) {
       best = candidate
       lo = mid + 1
@@ -154,19 +180,135 @@ function overviewPreview(item: Item, idx: number): TextContainerProperty {
   })
 }
 
-function buildReadingDocument(item: Item) {
-  let text = item.title
-  const sectionOffsets: number[] = []
-  for (const section of item.sections) {
-    text += '\n\n'
-    sectionOffsets.push(text.length)
-    text += `${section.heading}\n\n${section.content}`
-  }
-  return { text, sectionOffsets }
+function readingSectionHeader(item: Item, idx: number) {
+  const section = item.sections[idx]
+  if (!section) return item.title
+  return item.sections.length > 1 ? `[${idx + 1}/${item.sections.length}] - ${section.heading}` : section.heading
 }
 
-function sliceFromOffset(text: string, offset: number, maxChars: number) {
-  return text.slice(Math.max(0, offset), Math.max(0, offset) + maxChars)
+function splitReadingSection(item: Item, idx: number, maxChars = READING_CHARS) {
+  const section = item.sections[idx]
+  const header = readingSectionHeader(item, idx)
+  if (!section) return [truncBytes(trunc(header, maxChars), READING_PAGE_BYTES)]
+
+  const prefix = `${header}\n\n`
+  const prefixBytes = byteLength(prefix)
+  if (prefixBytes >= READING_PAGE_BYTES) return [truncBytes(trunc(header, maxChars), READING_PAGE_BYTES)]
+
+  const content = section.content.trim()
+  if (!content) return [header]
+
+  const room = Math.min(maxChars - prefix.length, READING_PAGE_BYTES - prefixBytes)
+  const pages: string[] = []
+  let cursor = 0
+
+  while (cursor < content.length) {
+    const remaining = content.slice(cursor)
+    if (byteLength(remaining) <= room) {
+      pages.push(`${header}\n\n${remaining}`)
+      break
+    }
+
+    const raw = sliceWithinBytes(remaining, room)
+    const paragraphBreak = raw.lastIndexOf('\n\n')
+    const lineBreak = raw.lastIndexOf('\n')
+    const wordBreak = raw.lastIndexOf(' ')
+    let splitAt = Math.max(paragraphBreak >= 0 ? paragraphBreak + 2 : -1, lineBreak + 1, wordBreak + 1)
+
+    // Avoid tiny tail pages by falling back to the hard limit when no decent break exists.
+    if (splitAt < Math.floor(raw.length * 0.6)) splitAt = raw.length
+
+    const chunk = remaining.slice(0, splitAt).trimEnd()
+    pages.push(`${header}\n\n${chunk || raw}`)
+    cursor += splitAt
+    while (cursor < content.length && /\s/.test(content[cursor] ?? '')) cursor += 1
+  }
+
+  return pages.length ? pages : [header]
+}
+
+function buildForwardReadingPages(item: Item, startSectionIndex: number) {
+  const start = Math.min(Math.max(startSectionIndex, 0), Math.max(0, item.sections.length - 1))
+  const pages: string[] = []
+  let current = ''
+
+  for (let idx = start; idx < item.sections.length; idx += 1) {
+    const chunks = splitReadingSection(item, idx)
+    for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex += 1) {
+      const chunk = chunks[chunkIndex]
+      if (!current) {
+        current = chunk
+        continue
+      }
+      const combined = `${current}\n\n${chunk}`
+      if (chunkIndex === 0 && byteLength(combined) <= READING_PAGE_BYTES) {
+        current = combined
+        continue
+      }
+      pages.push(current)
+      current = chunk
+    }
+  }
+
+  if (current) pages.push(current)
+  return pages.length ? pages : [truncBytes(item.title, READING_PAGE_BYTES)]
+}
+
+function buildBackwardReadingPages(item: Item, startSectionIndex: number) {
+  const start = Math.min(Math.max(startSectionIndex, 0), Math.max(0, item.sections.length))
+  const pages: string[] = []
+  let current = ''
+
+  for (let idx = start - 1; idx >= 0; idx -= 1) {
+    const chunks = splitReadingSection(item, idx)
+    for (let chunkIndex = chunks.length - 1; chunkIndex >= 0; chunkIndex -= 1) {
+      const chunk = chunks[chunkIndex]
+      if (!current) {
+        current = chunk
+        continue
+      }
+      const combined = `${chunk}\n\n${current}`
+      if (chunkIndex === chunks.length - 1 && byteLength(combined) <= READING_PAGE_BYTES) {
+        current = combined
+        continue
+      }
+      pages.push(current)
+      current = chunk
+    }
+  }
+
+  if (current) pages.push(current)
+  return pages
+}
+
+function readingWindow(item: Item, startSectionIndex: number) {
+  const backwardPages = buildBackwardReadingPages(item, startSectionIndex)
+  const forwardPages = buildForwardReadingPages(item, startSectionIndex)
+  return {
+    backwardPages,
+    forwardPages,
+    minPageIndex: -backwardPages.length,
+    maxPageIndex: forwardPages.length - 1,
+  }
+}
+
+function readingPage(item: Item, startSectionIndex: number, pageIndex: number) {
+  const window = readingWindow(item, startSectionIndex)
+  const clamped = Math.min(Math.max(pageIndex, window.minPageIndex), window.maxPageIndex)
+  if (clamped >= 0) {
+    return {
+      content: window.forwardPages[clamped],
+      pageIndex: clamped,
+      minPageIndex: window.minPageIndex,
+      maxPageIndex: window.maxPageIndex,
+    }
+  }
+  return {
+    content: window.backwardPages[Math.abs(clamped) - 1],
+    pageIndex: clamped,
+    minPageIndex: window.minPageIndex,
+    maxPageIndex: window.maxPageIndex,
+  }
 }
 
 function readingContainer(text: string): TextContainerProperty {
@@ -280,16 +422,9 @@ export class GlassesApp {
       return false
     }
     this.rendering = true
-    const document = buildReadingDocument(item)
-    const selectedOffset = document.sectionOffsets[this.state.sectionIndex] ?? 0
-    const startupText = truncBytes(
-      sliceFromOffset(document.text, selectedOffset, READING_CHARS),
-      STARTUP_READING_BYTES,
-    )
-    const upgradeText = trunc(
-      sliceFromOffset(document.text, selectedOffset, READING_CHARS),
-      READING_CHARS,
-    )
+    const page = readingPage(item, this.state.sectionIndex, this.state.readingPageIndex)
+    this.state.readingPageIndex = page.pageIndex
+    const startupText = truncBytes(page.content, STARTUP_READING_BYTES)
     const text = readingContainer(startupText)
     try {
       const ok = await this.renderPage('reading', {
@@ -303,17 +438,11 @@ export class GlassesApp {
       }
       this.state.screen = 'reading'
       this.activeContainerName = 'reading'
-      const upgraded = await this.bridge.textContainerUpgrade(
-        new TextContainerUpgrade({
-          containerID: READ_TEXT_ID,
-          containerName: 'reading',
-          contentOffset: selectedOffset,
-          contentLength: document.text.length,
-          content: upgradeText,
-        }),
+      const upgraded = await this.updateReadingSelection(
+        item,
+        this.state.readingPageIndex,
+        false,
       )
-      this.state.lastCall = `textContainerUpgrade(reading) → ${upgraded}`
-      console.log('[glasses]', this.state.lastCall)
       if (!upgraded) {
         this.notify()
         return false
@@ -496,6 +625,7 @@ export class GlassesApp {
       if (nextIndex < 0 || !this.state.items[nextIndex]) return
       this.state.itemIndex = nextIndex
       this.state.sectionIndex = 0
+      this.state.readingPageIndex = 0
       console.debug('[nav:home-click]', {
         nextIndex,
         itemTitle: this.state.items[nextIndex]?.title,
@@ -545,6 +675,34 @@ export class GlassesApp {
     return ok
   }
 
+  private async updateReadingSelection(
+    item: Item,
+    pageIndex: number,
+    fallbackToRebuild = true,
+  ) {
+    const page = readingPage(item, this.state.sectionIndex, pageIndex)
+    this.state.readingPageIndex = page.pageIndex
+    const ok = await this.bridge.textContainerUpgrade(
+      new TextContainerUpgrade({
+        containerID: READ_TEXT_ID,
+        containerName: 'reading',
+        contentOffset: 0,
+        contentLength: byteLength(page.content),
+        content: page.content,
+      }),
+    )
+    this.state.lastCall = `textContainerUpgrade(reading) → ${ok}`
+    console.log('[glasses]', this.state.lastCall)
+    if (!ok) {
+      if (fallbackToRebuild && !this.rendering) {
+        await this.pushReading()
+      }
+    } else {
+      this.notify()
+    }
+    return ok
+  }
+
   private handleOverviewInput(et: OsEventTypeList) {
     const item = this.state.items[this.state.itemIndex]
     if (!item) return
@@ -568,11 +726,13 @@ export class GlassesApp {
 
   private setSelectedSection(item: Item, idx: number) {
     if (!item.sections[idx]) return false
-    const changed = this.state.sectionIndex !== idx
+    const changed = this.state.sectionIndex !== idx || this.state.readingPageIndex !== 0
     this.state.sectionIndex = idx
+    this.state.readingPageIndex = 0
     console.debug('[nav:section-select]', {
       itemIndex: this.state.itemIndex,
       sectionIndex: idx,
+      readingPageIndex: 0,
       sectionHeading: item.sections[idx]?.heading,
       changed,
     })
@@ -587,6 +747,47 @@ export class GlassesApp {
     }
     console.debug('[nav:overview-sync]', { source, sectionIndex: idx })
     await this.updateOverviewSelection(item, idx)
+  }
+
+  private handleReadingInput(et: OsEventTypeList, source: 'text' | 'sys') {
+    const item = this.state.items[this.state.itemIndex]
+    if (!item) return
+    if (et === OsEventTypeList.DOUBLE_CLICK_EVENT) {
+      void this.pushOverview().then(() => this.notify())
+      return
+    }
+    if (et !== OsEventTypeList.SCROLL_TOP_EVENT && et !== OsEventTypeList.SCROLL_BOTTOM_EVENT) {
+      return
+    }
+    const targetPageIndex = this.resolveReadingPageIndex(item, et)
+    if (targetPageIndex === null || targetPageIndex === this.state.readingPageIndex) return
+    void this.syncReadingSelection(item, targetPageIndex, source)
+  }
+
+  private resolveReadingPageIndex(item: Item, et: OsEventTypeList) {
+    const current = readingPage(item, this.state.sectionIndex, this.state.readingPageIndex)
+    if (et === OsEventTypeList.SCROLL_TOP_EVENT) {
+      return current.pageIndex > current.minPageIndex ? current.pageIndex - 1 : null
+    }
+    if (et === OsEventTypeList.SCROLL_BOTTOM_EVENT) {
+      return current.pageIndex < current.maxPageIndex ? current.pageIndex + 1 : null
+    }
+    return null
+  }
+
+  private async syncReadingSelection(item: Item, pageIndex: number, source: 'text' | 'sys') {
+    const changed = this.state.readingPageIndex !== pageIndex
+    this.state.readingPageIndex = pageIndex
+    if (!changed) {
+      this.notify()
+      return
+    }
+    console.debug('[nav:reading-sync]', {
+      source,
+      sectionIndex: this.state.sectionIndex,
+      readingPageIndex: pageIndex,
+    })
+    await this.updateReadingSelection(item, pageIndex)
   }
 
   private handleText(et: OsEventTypeList | undefined, containerName: string | undefined) {
@@ -611,9 +812,7 @@ export class GlassesApp {
       eventContainerName: containerName,
       et,
     })
-    if (et === OsEventTypeList.DOUBLE_CLICK_EVENT) {
-      void this.pushOverview().then(() => this.notify())
-    }
+    this.handleReadingInput(et, 'text')
   }
 
   private handleSystem(evt: Sys_ItemEvent) {
@@ -639,6 +838,16 @@ export class GlassesApp {
       )
       if (nextIndex < 0) return
       void this.syncOverviewSelection(item, nextIndex, 'sys')
+      return
+    }
+
+    if (
+      this.state.screen === 'reading'
+      && (et === OsEventTypeList.SCROLL_TOP_EVENT
+        || et === OsEventTypeList.SCROLL_BOTTOM_EVENT
+        || et === OsEventTypeList.DOUBLE_CLICK_EVENT)
+    ) {
+      this.handleReadingInput(et, 'sys')
       return
     }
 

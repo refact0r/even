@@ -265,16 +265,20 @@ async function main() {
     items,
     itemIndex: recentIdx >= 0 ? recentIdx : 0,
     sectionIndex: 0,
+    readingPageIndex: 0,
   }
 
   state.onChange = () => {
     screenStatus.textContent = screenLabel(state.screen)
     const item = state.items[state.itemIndex]
     itemStatus.textContent = item ? `${state.itemIndex + 1}/${state.items.length} — ${item.title}` : '—'
-    sectionStatus.textContent =
-      state.screen !== 'home' && item?.sections[state.sectionIndex]
-        ? `${state.sectionIndex + 1}/${item.sections.length} — ${item.sections[state.sectionIndex].heading}`
-        : '—'
+    if (state.screen === 'home' || !item?.sections[state.sectionIndex]) {
+      sectionStatus.textContent = '—'
+    } else {
+      const section = item.sections[state.sectionIndex]
+      const suffix = state.screen === 'reading' ? ' · reading' : ''
+      sectionStatus.textContent = `${state.sectionIndex + 1}/${item.sections.length} — ${section.heading}${suffix}`
+    }
     callStatus.textContent = state.lastCall ?? '—'
     renderItemList(state.items, state)
   }
