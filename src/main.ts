@@ -3,6 +3,9 @@ import { waitForEvenAppBridge } from '@evenrealities/even_hub_sdk'
 import { addItem, consumeRecent, loadItems, resetStorage } from './store'
 import { GlassesApp, type AppState, type Screen } from './glasses'
 import { installDebugConsole } from './debug-console'
+import { getApiKey, setApiKey, type Mode } from './client/client'
+import { ingestFile } from './data-stream/from-file'
+import { ingestLink } from './data-stream/from-link'
 import type { Item } from './types'
 
 const app = document.querySelector<HTMLDivElement>('#app')!
@@ -19,6 +22,34 @@ app.innerHTML = `
       <div><span class="label">Item</span><span id="item-status">—</span></div>
       <div><span class="label">Section</span><span id="section-status">—</span></div>
       <div><span class="label">Last call</span><span id="call-status">—</span></div>
+    </section>
+
+    <section class="card ingest">
+      <div class="section-head">
+        <h2>OpenRouter Ingest</h2>
+        <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer noopener" class="key-link">Get a key ↗</a>
+      </div>
+      <div class="ingest-row">
+        <input id="api-key-input" type="password" placeholder="sk-or-…" autocomplete="off" />
+        <button id="api-key-save" class="slim">Save key</button>
+        <span id="api-key-status" class="meta">—</span>
+      </div>
+      <div class="ingest-row">
+        <label class="mode-label" for="mode-select">Mode</label>
+        <select id="mode-select">
+          <option value="short">short</option>
+          <option value="long">long</option>
+        </select>
+      </div>
+      <div class="ingest-row">
+        <input id="file-input" type="file" accept=".txt,text/plain" />
+        <button id="file-btn">Summarize file</button>
+      </div>
+      <div class="ingest-row">
+        <input id="url-input" type="url" placeholder="https://example.com/article" />
+        <button id="url-btn">Summarize URL</button>
+      </div>
+      <div id="ingest-status" class="meta">Ready.</div>
     </section>
 
     <section class="card actions">
@@ -55,6 +86,74 @@ const itemCount = document.querySelector<HTMLSpanElement>('#item-count')!
 const itemList = document.querySelector<HTMLOListElement>('#item-list')!
 
 installDebugConsole(debugLog, clearLogButton)
+
+const apiKeyInput = document.querySelector<HTMLInputElement>('#api-key-input')!
+const apiKeySave = document.querySelector<HTMLButtonElement>('#api-key-save')!
+const apiKeyStatus = document.querySelector<HTMLSpanElement>('#api-key-status')!
+const modeSelect = document.querySelector<HTMLSelectElement>('#mode-select')!
+const fileInput = document.querySelector<HTMLInputElement>('#file-input')!
+const fileBtn = document.querySelector<HTMLButtonElement>('#file-btn')!
+const urlInput = document.querySelector<HTMLInputElement>('#url-input')!
+const urlBtn = document.querySelector<HTMLButtonElement>('#url-btn')!
+const ingestStatus = document.querySelector<HTMLDivElement>('#ingest-status')!
+
+function refreshKeyStatus() {
+  const key = getApiKey()
+  apiKeyStatus.textContent = key ? `saved · …${key.slice(-4)}` : 'no key'
+}
+refreshKeyStatus()
+
+apiKeySave.addEventListener('click', () => {
+  setApiKey(apiKeyInput.value)
+  apiKeyInput.value = ''
+  refreshKeyStatus()
+})
+
+function currentMode(): Mode {
+  return modeSelect.value === 'long' ? 'long' : 'short'
+}
+
+function setIngestBusy(busy: boolean, message: string) {
+  ingestStatus.textContent = message
+  fileBtn.disabled = busy
+  urlBtn.disabled = busy
+}
+
+fileBtn.addEventListener('click', async () => {
+  const file = fileInput.files?.[0]
+  if (!file) {
+    setIngestBusy(false, 'Pick a .txt file first.')
+    return
+  }
+  setIngestBusy(true, `Summarizing ${file.name}…`)
+  try {
+    const item = await ingestFile(file, currentMode())
+    console.info(`ingestFile: ${item.title}`)
+    location.reload()
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error(`ingestFile failed: ${msg}`)
+    setIngestBusy(false, `Error: ${msg}`)
+  }
+})
+
+urlBtn.addEventListener('click', async () => {
+  const url = urlInput.value.trim()
+  if (!url) {
+    setIngestBusy(false, 'Paste a URL first.')
+    return
+  }
+  setIngestBusy(true, `Summarizing ${url}…`)
+  try {
+    const item = await ingestLink(url, currentMode())
+    console.info(`ingestLink: ${item.title}`)
+    location.reload()
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error(`ingestLink failed: ${msg}`)
+    setIngestBusy(false, `Error: ${msg}`)
+  }
+})
 
 document.querySelector<HTMLButtonElement>('#reset-btn')!.addEventListener('click', () => {
   resetStorage()
