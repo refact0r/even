@@ -154,19 +154,12 @@ function overviewPreview(item: Item, idx: number): TextContainerProperty {
   })
 }
 
-function buildReadingDocument(item: Item) {
-  let text = item.title
-  const sectionOffsets: number[] = []
-  for (const section of item.sections) {
-    text += '\n\n'
-    sectionOffsets.push(text.length)
-    text += `${section.heading}\n\n${section.content}`
-  }
-  return { text, sectionOffsets }
-}
-
-function sliceFromOffset(text: string, offset: number, maxChars: number) {
-  return text.slice(Math.max(0, offset), Math.max(0, offset) + maxChars)
+function readingSectionText(item: Item, idx: number, maxChars = READING_CHARS) {
+  const section = item.sections[idx]
+  if (!section) return trunc(item.title, maxChars)
+  const heading =
+    item.sections.length > 1 ? `${section.heading} (${idx + 1}/${item.sections.length})` : section.heading
+  return trunc(`${item.title}\n\n${heading}\n\n${section.content}`, maxChars)
 }
 
 function readingContainer(text: string): TextContainerProperty {
@@ -280,16 +273,8 @@ export class GlassesApp {
       return false
     }
     this.rendering = true
-    const document = buildReadingDocument(item)
-    const selectedOffset = document.sectionOffsets[this.state.sectionIndex] ?? 0
-    const startupText = truncBytes(
-      sliceFromOffset(document.text, selectedOffset, READING_CHARS),
-      STARTUP_READING_BYTES,
-    )
-    const upgradeText = trunc(
-      sliceFromOffset(document.text, selectedOffset, READING_CHARS),
-      READING_CHARS,
-    )
+    const content = readingSectionText(item, this.state.sectionIndex)
+    const startupText = truncBytes(content, STARTUP_READING_BYTES)
     const text = readingContainer(startupText)
     try {
       const ok = await this.renderPage('reading', {
@@ -303,17 +288,7 @@ export class GlassesApp {
       }
       this.state.screen = 'reading'
       this.activeContainerName = 'reading'
-      const upgraded = await this.bridge.textContainerUpgrade(
-        new TextContainerUpgrade({
-          containerID: READ_TEXT_ID,
-          containerName: 'reading',
-          contentOffset: selectedOffset,
-          contentLength: document.text.length,
-          content: upgradeText,
-        }),
-      )
-      this.state.lastCall = `textContainerUpgrade(reading) → ${upgraded}`
-      console.log('[glasses]', this.state.lastCall)
+      const upgraded = await this.updateReadingSelection(item, this.state.sectionIndex, false)
       if (!upgraded) {
         this.notify()
         return false
@@ -545,6 +520,29 @@ export class GlassesApp {
     return ok
   }
 
+  private async updateReadingSelection(item: Item, idx: number, fallbackToRebuild = true) {
+    const content = readingSectionText(item, idx)
+    const ok = await this.bridge.textContainerUpgrade(
+      new TextContainerUpgrade({
+        containerID: READ_TEXT_ID,
+        containerName: 'reading',
+        contentOffset: 0,
+        contentLength: content.length,
+        content,
+      }),
+    )
+    this.state.lastCall = `textContainerUpgrade(reading) → ${ok}`
+    console.log('[glasses]', this.state.lastCall)
+    if (!ok) {
+      if (fallbackToRebuild && !this.rendering) {
+        await this.pushReading()
+      }
+    } else {
+      this.notify()
+    }
+    return ok
+  }
+
   private handleOverviewInput(et: OsEventTypeList) {
     const item = this.state.items[this.state.itemIndex]
     if (!item) return
@@ -589,6 +587,31 @@ export class GlassesApp {
     await this.updateOverviewSelection(item, idx)
   }
 
+  private handleReadingInput(et: OsEventTypeList, source: 'text' | 'sys') {
+    const item = this.state.items[this.state.itemIndex]
+    if (!item) return
+    if (et === OsEventTypeList.DOUBLE_CLICK_EVENT) {
+      void this.pushOverview().then(() => this.notify())
+      return
+    }
+    if (et !== OsEventTypeList.SCROLL_TOP_EVENT && et !== OsEventTypeList.SCROLL_BOTTOM_EVENT) {
+      return
+    }
+    const nextIndex = this.resolveTargetIndex(et, undefined, this.state.sectionIndex, item.sections.length)
+    if (nextIndex < 0 || nextIndex === this.state.sectionIndex || !item.sections[nextIndex]) return
+    void this.syncReadingSelection(item, nextIndex, source)
+  }
+
+  private async syncReadingSelection(item: Item, idx: number, source: 'text' | 'sys') {
+    const changed = this.setSelectedSection(item, idx)
+    if (!changed) {
+      this.notify()
+      return
+    }
+    console.debug('[nav:reading-sync]', { source, sectionIndex: idx })
+    await this.updateReadingSelection(item, idx)
+  }
+
   private handleText(et: OsEventTypeList | undefined, containerName: string | undefined) {
     if (et === undefined) return
     if (this.state.screen === 'overview') {
@@ -611,9 +634,7 @@ export class GlassesApp {
       eventContainerName: containerName,
       et,
     })
-    if (et === OsEventTypeList.DOUBLE_CLICK_EVENT) {
-      void this.pushOverview().then(() => this.notify())
-    }
+    this.handleReadingInput(et, 'text')
   }
 
   private handleSystem(evt: Sys_ItemEvent) {
@@ -639,6 +660,16 @@ export class GlassesApp {
       )
       if (nextIndex < 0) return
       void this.syncOverviewSelection(item, nextIndex, 'sys')
+      return
+    }
+
+    if (
+      this.state.screen === 'reading'
+      && (et === OsEventTypeList.SCROLL_TOP_EVENT
+        || et === OsEventTypeList.SCROLL_BOTTOM_EVENT
+        || et === OsEventTypeList.DOUBLE_CLICK_EVENT)
+    ) {
+      this.handleReadingInput(et, 'sys')
       return
     }
 
