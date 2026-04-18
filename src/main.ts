@@ -42,7 +42,7 @@ app.innerHTML = `
         </select>
       </div>
       <div class="ingest-row">
-        <input id="file-input" type="file" accept=".txt,text/plain" />
+        <input id="file-input" type="file" accept=".txt,.pdf,.png,.jpg,.jpeg,.webp,.gif,text/plain,application/pdf,image/*" />
         <button id="file-btn">Summarize file</button>
       </div>
       <div class="ingest-row">

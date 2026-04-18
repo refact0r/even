@@ -1,30 +1,80 @@
-import { generateItem, type Mode } from '../client/client'
+import { generateItem, type ChatMessage, type Mode, type OpenRouterPlugin } from '../client/client'
 import { addItem } from '../store'
 import type { Item } from '../types'
 
-const MAX_CHARS = 60_000
+const MAX_TEXT_CHARS = 60_000
+const MAX_BINARY_BYTES = 20 * 1024 * 1024
+
+type Kind = 'text' | 'image' | 'pdf'
 
 export async function ingestFile(file: File, mode: Mode): Promise<Item> {
   const name = file.name || 'untitled'
-  const isTxt = /\.txt$/i.test(name) || file.type === 'text/plain'
-  if (!isTxt) throw new Error(`Unsupported file type: ${file.type || name}`)
+  const kind = detectKind(file, name)
+  if (!kind) throw new Error(`Unsupported file type: ${file.type || name}`)
 
-  const raw = await file.text()
-  const text = raw.trim()
-  if (!text) throw new Error('File is empty')
+  let messages: ChatMessage[]
+  let plugins: OpenRouterPlugin[] | undefined
 
-  const truncated = text.length > MAX_CHARS ? text.slice(0, MAX_CHARS) : text
-
-  const item = await generateItem({
-    mode,
-    messages: [
+  if (kind === 'text') {
+    const text = (await file.text()).trim()
+    if (!text) throw new Error('File is empty')
+    const truncated = text.length > MAX_TEXT_CHARS ? text.slice(0, MAX_TEXT_CHARS) : text
+    messages = [
       {
         role: 'user',
         content: `Summarize the following document titled "${name}":\n\n${truncated}`,
       },
-    ],
-  })
+    ]
+  } else if (kind === 'image') {
+    if (file.size > MAX_BINARY_BYTES) throw new Error('Image is larger than 20 MB')
+    const dataUrl = await readAsDataUrl(file)
+    messages = [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: `Summarize the content visible in this image titled "${name}".` },
+          { type: 'image_url', image_url: { url: dataUrl } },
+        ],
+      },
+    ]
+  } else {
+    if (file.size > MAX_BINARY_BYTES) throw new Error('PDF is larger than 20 MB')
+    const dataUrl = await readAsDataUrl(file)
+    messages = [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: `Summarize the following PDF titled "${name}".` },
+          { type: 'file', file: { filename: name, file_data: dataUrl } },
+        ],
+      },
+    ]
+    plugins = [{ id: 'file-parser', pdf: { engine: 'pdf-text' } }]
+  }
 
+  const item = await generateItem({ mode, messages, plugins })
   addItem(item)
   return item
+}
+
+function detectKind(file: File, name: string): Kind | null {
+  const type = file.type.toLowerCase()
+  const lower = name.toLowerCase()
+  if (type === 'text/plain' || lower.endsWith('.txt')) return 'text'
+  if (type.startsWith('image/') || /\.(png|jpe?g|webp|gif)$/i.test(lower)) return 'image'
+  if (type === 'application/pdf' || lower.endsWith('.pdf')) return 'pdf'
+  return null
+}
+
+function readAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result
+      if (typeof result !== 'string') reject(new Error('Could not read file'))
+      else resolve(result)
+    }
+    reader.onerror = () => reject(reader.error ?? new Error('FileReader failed'))
+    reader.readAsDataURL(file)
+  })
 }
