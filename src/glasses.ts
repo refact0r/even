@@ -26,7 +26,7 @@ const ITEM_NAME_MAX = 62
 const OVW_NAV_HEADING_MAX = 22
 const OVW_SPLIT = 240
 const OVW_GAP = 4
-const OVERVIEW_WINDOW_SIZE = 7
+const OVERVIEW_WINDOW_SIZE = 8
 const PREVIEW_CHARS = 260
 const READING_CHARS = 2000
 const STARTUP_TEXT_BYTES = 999
@@ -45,9 +45,20 @@ export interface AppState {
 	onChange?: () => void
 }
 
+function sanitize(s: string): string {
+	return s
+		.replace(/`/g, "'")
+		.replace(/[\u2018\u2019\u02BC]/g, "'")
+		.replace(/[\u201C\u201D\u00AB\u00BB]/g, '"')
+		.replace(/[\u2013\u2014\u2015]/g, '-')
+		.replace(/\u2026/g, '...')
+		.replace(/[\u2022\u2023\u25E6\u2043]/g, '-')
+		.replace(/[^\x20-\x7E\n\u2500-\u257F]/g, '')
+}
+
 function trunc(s: string, n: number): string {
 	if (!s) return ''
-	return s.length <= n ? s : s.slice(0, Math.max(0, n - 1)) + '…'
+	return s.length <= n ? s : s.slice(0, Math.max(0, n - 3)) + '...'
 }
 
 function truncBytes(s: string, maxBytes: number): string {
@@ -97,7 +108,7 @@ function sliceWithinBytes(s: string, maxBytes: number): string {
 function homeListLabels(items: Item[]) {
 	return items
 		.slice(0, 20)
-		.map((it, i) => trunc(`${i + 1}. ${it.title}`, ITEM_NAME_MAX))
+		.map((it, i) => trunc(`${i + 1}. ${sanitize(it.title)}`, ITEM_NAME_MAX))
 }
 
 const HOME_TITLE_H = 40
@@ -145,7 +156,7 @@ function homeList(items: Item[]): ListContainerProperty {
 function overviewSectionLabels(item: Item) {
 	return item.sections
 		.slice(0, 20)
-		.map((s) => trunc(s.heading, OVW_NAV_HEADING_MAX))
+		.map((s) => trunc(sanitize(s.heading), OVW_NAV_HEADING_MAX))
 }
 
 function overviewNavText(item: Item, activeSection: number): string {
@@ -197,9 +208,9 @@ function previewText(
 ): string {
 	const section = item.sections[idx]
 	if (!section) return ''
-	const header = `${section.heading}\n\n`
+	const header = `${sanitize(section.heading)}\n\n`
 	return (
-		header + trunc(section.content, Math.max(40, maxChars - header.length))
+		header + trunc(sanitize(section.content), Math.max(40, maxChars - header.length))
 	)
 }
 
@@ -246,7 +257,7 @@ function splitReadingSection(
 	if (prefixBytes >= READING_PAGE_BYTES)
 		return [truncBytes(trunc(header, maxChars), READING_PAGE_BYTES)]
 
-	const content = section.content.trim()
+	const content = sanitize(section.content).trim()
 	if (!content) return [header]
 
 	const room = Math.min(

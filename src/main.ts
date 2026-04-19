@@ -335,12 +335,15 @@ async function main() {
 			return
 		}
 		if (action === 'delete') {
-			if (!window.confirm('Delete this note?')) return
 			const next = removeItem(id)
 			state.items = next
 			if (state.itemIndex >= next.length)
 				state.itemIndex = Math.max(0, next.length - 1)
 			state.onChange?.()
+			if (glassesApp && glassesState) {
+				glassesState.items = next
+				glassesApp.refreshItems(next).catch(() => {})
+			}
 		}
 	})
 

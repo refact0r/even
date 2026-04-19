@@ -18,7 +18,7 @@ Hard rules:
 - Element 0 MUST have heading exactly "Summary" and a 40-80 word recap of the whole source.
 - Elements 1..N are the actual content sections. Use the source's own headings/chapter titles where they exist. Each section's "content" MUST be the original, uncompressed text of that section — do NOT summarize or paraphrase it down to a few sentences.
 - Every heading in the array MUST be unique.
-- All "content" fields MUST be plain text. No markdown, no lists, no line breaks within a section.
+- All "content" fields MUST be plain ASCII text. No markdown, no lists, no line breaks within a section. No backticks, smart quotes, curly quotes, em dashes, en dashes, ellipsis characters, bullet points, or any non-ASCII symbols.
 - "title" MUST be a non-empty string. Prefer short titles; the HUD truncates on render.
 - Preserve the source's own ordering for sections.
 - Do not invent facts. If the source is empty or unreadable, return a JSON object with title "Unreadable", type "long", and a single-element sections array whose one element has heading "Summary" and content explaining that the source could not be read (this is the one exception to the 3-20 rule).

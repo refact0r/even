@@ -3,7 +3,7 @@ import longFormPrompt from './prompts/long-form.txt?raw'
 import type { Item, ItemType, Section } from '../types'
 
 const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
-const DEFAULT_MODEL = 'openai/gpt-4o-mini'
+const DEFAULT_MODEL = 'openai/gpt-4o'
 const API_KEY_STORAGE = 'universal-reader:openrouter-key'
 
 export type Mode = 'short' | 'long'

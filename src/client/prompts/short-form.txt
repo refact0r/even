@@ -17,7 +17,7 @@ Hard rules:
 - "type" MUST be the literal string "short".
 - "sections" MUST be an array of exactly one element.
 - The one section's "heading" MUST be the literal string "Summary".
-- "content" MUST be plain text, 40-80 words. No markdown, no lists, no line breaks.
+- "content" MUST be plain ASCII text, 40-80 words. No markdown, no lists, no line breaks. No backticks, smart quotes, curly quotes, em dashes, en dashes, ellipsis characters, bullet points, or any non-ASCII symbols.
 - "title" MUST be a non-empty string. Prefer short titles; the HUD truncates on render.
 - Do not invent facts. If the source is empty or unreadable, return a JSON object with title "Unreadable" and a Summary section explaining that the source could not be summarized.
 - Do not wrap the JSON in code fences. Return the raw JSON object only.
