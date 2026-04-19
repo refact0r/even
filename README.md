@@ -13,6 +13,7 @@ Nutshell accepts any document — PDFs, articles, links, photos of text — and 
 - **Universal input.** Drop in a file, URL, or image. Nutshell handles the rest.
 - **Simple glasses UI.** Three screens: home, overview, reading. Scroll, click, done.
 - **AI-enhanced.** Summaries and Q&A so you only read what matters.
+- **Save your Notes** Save your notes to disk.
 
 ## Screenshot
 
