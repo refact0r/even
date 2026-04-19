@@ -1,6 +1,12 @@
 import './style.css'
 import { waitForEvenAppBridge } from '@evenrealities/even_hub_sdk'
-import { addItem, consumeRecent, loadItems, removeItem, resetStorage } from './store'
+import {
+	addItem,
+	consumeRecent,
+	loadItems,
+	removeItem,
+	resetStorage,
+} from './store'
 import { GlassesApp, type AppState, type Screen } from './glasses'
 import { installDebugConsole } from './debug-console'
 import { getApiKey, setApiKey } from './client/client'
@@ -27,11 +33,11 @@ app.innerHTML = `
         </div>
         <div class="ingest-row">
           <input id="file-input" type="file" accept=".txt,.pdf,.png,.jpg,.jpeg,.webp,.gif,text/plain,application/pdf,image/*" />
-          <button id="file-btn">Summarize file</button>
+          <button id="file-btn">Go</button>
         </div>
         <div class="ingest-row">
           <input id="url-input" type="url" placeholder="https://example.com/article" />
-          <button id="url-btn">Summarize URL</button>
+          <button id="url-btn">Go</button>
         </div>
         <div id="ingest-status" class="meta">Short text gets a single Summary; longer input and media get a Summary plus chapters.</div>
       </section>
@@ -90,10 +96,12 @@ app.innerHTML = `
 const bridgeStatus = document.querySelector<HTMLSpanElement>('#bridge-status')!
 const screenStatus = document.querySelector<HTMLSpanElement>('#screen-status')!
 const itemStatus = document.querySelector<HTMLSpanElement>('#item-status')!
-const sectionStatus = document.querySelector<HTMLSpanElement>('#section-status')!
+const sectionStatus =
+	document.querySelector<HTMLSpanElement>('#section-status')!
 const callStatus = document.querySelector<HTMLSpanElement>('#call-status')!
 const debugLog = document.querySelector<HTMLDivElement>('#debug-log')!
-const clearLogButton = document.querySelector<HTMLButtonElement>('#clear-log-btn')!
+const clearLogButton =
+	document.querySelector<HTMLButtonElement>('#clear-log-btn')!
 const itemCount = document.querySelector<HTMLSpanElement>('#item-count')!
 const itemList = document.querySelector<HTMLOListElement>('#item-list')!
 const viewNotes = document.querySelector<HTMLDivElement>('#view-notes')!
@@ -106,18 +114,18 @@ let glassesApp: GlassesApp | null = null
 let glassesState: AppState | null = null
 
 function setView(view: 'notes' | 'settings') {
-  viewNotes.hidden = view !== 'notes'
-  viewSettings.hidden = view !== 'settings'
-  viewTabs.forEach((btn) => {
-    btn.classList.toggle('active', btn.dataset.view === view)
-  })
+	viewNotes.hidden = view !== 'notes'
+	viewSettings.hidden = view !== 'settings'
+	viewTabs.forEach((btn) => {
+		btn.classList.toggle('active', btn.dataset.view === view)
+	})
 }
 
 viewTabs.forEach((btn) => {
-  btn.addEventListener('click', () => {
-    const v = btn.dataset.view === 'settings' ? 'settings' : 'notes'
-    setView(v)
-  })
+	btn.addEventListener('click', () => {
+		const v = btn.dataset.view === 'settings' ? 'settings' : 'notes'
+		setView(v)
+	})
 })
 
 const apiKeyInput = document.querySelector<HTMLInputElement>('#api-key-input')!
@@ -130,106 +138,110 @@ const urlBtn = document.querySelector<HTMLButtonElement>('#url-btn')!
 const ingestStatus = document.querySelector<HTMLDivElement>('#ingest-status')!
 
 function refreshKeyStatus() {
-  const key = getApiKey()
-  apiKeyStatus.textContent = key ? `saved · …${key.slice(-4)}` : 'no key'
+	const key = getApiKey()
+	apiKeyStatus.textContent = key ? `saved · …${key.slice(-4)}` : 'no key'
 }
 refreshKeyStatus()
 
 apiKeySave.addEventListener('click', () => {
-  setApiKey(apiKeyInput.value)
-  apiKeyInput.value = ''
-  refreshKeyStatus()
+	setApiKey(apiKeyInput.value)
+	apiKeyInput.value = ''
+	refreshKeyStatus()
 })
 
 function setIngestBusy(busy: boolean, message: string) {
-  ingestStatus.textContent = message
-  fileBtn.disabled = busy
-  urlBtn.disabled = busy
+	ingestStatus.textContent = message
+	fileBtn.disabled = busy
+	urlBtn.disabled = busy
 }
 
 fileBtn.addEventListener('click', async () => {
-  const file = fileInput.files?.[0]
-  if (!file) {
-    setIngestBusy(false, 'Pick a .txt file first.')
-    return
-  }
-  setIngestBusy(true, `Summarizing ${file.name}…`)
-  try {
-    const item = await ingestFile(file)
-    console.info(`ingestFile: ${item.title}`)
-    if (glassesApp && glassesState) {
-      glassesState.items = loadItems()
-      setIngestBusy(false, `Done: "${item.title}"`)
-      await glassesApp.refreshItems(glassesState.items)
-    } else {
-      location.reload()
-    }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    console.error(`ingestFile failed: ${msg}`)
-    setIngestBusy(false, `Error: ${msg}`)
-  }
+	const file = fileInput.files?.[0]
+	if (!file) {
+		setIngestBusy(false, 'Pick a .txt file first.')
+		return
+	}
+	setIngestBusy(true, `Summarizing ${file.name}…`)
+	try {
+		const item = await ingestFile(file)
+		console.info(`ingestFile: ${item.title}`)
+		if (glassesApp && glassesState) {
+			glassesState.items = loadItems()
+			setIngestBusy(false, `Done: "${item.title}"`)
+			await glassesApp.refreshItems(glassesState.items)
+		} else {
+			location.reload()
+		}
+	} catch (err) {
+		const msg = err instanceof Error ? err.message : String(err)
+		console.error(`ingestFile failed: ${msg}`)
+		setIngestBusy(false, `Error: ${msg}`)
+	}
 })
 
 urlBtn.addEventListener('click', async () => {
-  const url = urlInput.value.trim()
-  if (!url) {
-    setIngestBusy(false, 'Paste a URL first.')
-    return
-  }
-  setIngestBusy(true, `Summarizing ${url}…`)
-  try {
-    const item = await ingestLink(url)
-    console.info(`ingestLink: ${item.title}`)
-    if (glassesApp && glassesState) {
-      glassesState.items = loadItems()
-      setIngestBusy(false, `Done: "${item.title}"`)
-      await glassesApp.refreshItems(glassesState.items)
-    } else {
-      location.reload()
-    }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    console.error(`ingestLink failed: ${msg}`)
-    setIngestBusy(false, `Error: ${msg}`)
-  }
+	const url = urlInput.value.trim()
+	if (!url) {
+		setIngestBusy(false, 'Paste a URL first.')
+		return
+	}
+	setIngestBusy(true, `Summarizing ${url}…`)
+	try {
+		const item = await ingestLink(url)
+		console.info(`ingestLink: ${item.title}`)
+		if (glassesApp && glassesState) {
+			glassesState.items = loadItems()
+			setIngestBusy(false, `Done: "${item.title}"`)
+			await glassesApp.refreshItems(glassesState.items)
+		} else {
+			location.reload()
+		}
+	} catch (err) {
+		const msg = err instanceof Error ? err.message : String(err)
+		console.error(`ingestLink failed: ${msg}`)
+		setIngestBusy(false, `Error: ${msg}`)
+	}
 })
 
-document.querySelector<HTMLButtonElement>('#reset-btn')!.addEventListener('click', () => {
-  resetStorage()
-  location.reload()
-})
+document
+	.querySelector<HTMLButtonElement>('#reset-btn')!
+	.addEventListener('click', () => {
+		resetStorage()
+		location.reload()
+	})
 
-document.querySelector<HTMLButtonElement>('#add-btn')!.addEventListener('click', () => {
-  const now = Date.now()
-  const fresh: Item = {
-    id: `item-${now}`,
-    title: `Captured ${new Date(now).toLocaleTimeString()}`,
-    type: 'short',
-    createdAt: now,
-    sections: [
-      {
-        heading: 'Summary',
-        content:
-          'This is a freshly captured item. It was added from the phone web view. Because it was captured just now, the glasses should jump straight into its overview on next launch instead of the home list.',
-      },
-      {
-        heading: 'Details',
-        content:
-          'Real ingestion (URL, image OCR, shared text, browser-extension push) will write items into the same localStorage shape the glasses UI already consumes. The skip-to-overview behavior is driven by a short-lived recent-id flag.',
-      },
-    ],
-  }
-  addItem(fresh)
-  location.reload()
-})
+document
+	.querySelector<HTMLButtonElement>('#add-btn')!
+	.addEventListener('click', () => {
+		const now = Date.now()
+		const fresh: Item = {
+			id: `item-${now}`,
+			title: `Captured ${new Date(now).toLocaleTimeString()}`,
+			type: 'short',
+			createdAt: now,
+			sections: [
+				{
+					heading: 'Summary',
+					content:
+						'This is a freshly captured item. It was added from the phone web view. Because it was captured just now, the glasses should jump straight into its overview on next launch instead of the home list.',
+				},
+				{
+					heading: 'Details',
+					content:
+						'Real ingestion (URL, image OCR, shared text, browser-extension push) will write items into the same localStorage shape the glasses UI already consumes. The skip-to-overview behavior is driven by a short-lived recent-id flag.',
+				},
+			],
+		}
+		addItem(fresh)
+		location.reload()
+	})
 
 function renderItemList(items: Item[], state: AppState) {
-  itemCount.textContent = `${items.length} total`
-  itemList.innerHTML = items
-    .map((it, i) => {
-      const active = i === state.itemIndex ? ' class="active"' : ''
-      return `
+	itemCount.textContent = `${items.length} total`
+	itemList.innerHTML = items
+		.map((it, i) => {
+			const active = i === state.itemIndex ? ' class="active"' : ''
+			return `
         <li${active}>
           <div class="title-row">
             <span class="title">${escapeHtml(it.title)}</span>
@@ -242,104 +254,118 @@ function renderItemList(items: Item[], state: AppState) {
           </div>
         </li>
       `
-    })
-    .join('')
+		})
+		.join('')
 }
 
 function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => {
-    switch (c) {
-      case '&': return '&amp;'
-      case '<': return '&lt;'
-      case '>': return '&gt;'
-      case '"': return '&quot;'
-      default: return '&#39;'
-    }
-  })
+	return s.replace(/[&<>"']/g, (c) => {
+		switch (c) {
+			case '&':
+				return '&amp;'
+			case '<':
+				return '&lt;'
+			case '>':
+				return '&gt;'
+			case '"':
+				return '&quot;'
+			default:
+				return '&#39;'
+		}
+	})
 }
 
 function screenLabel(s: Screen): string {
-  if (s === 'home') return 'Home'
-  if (s === 'overview') return 'Overview'
-  return 'Reading'
+	if (s === 'home') return 'Home'
+	if (s === 'overview') return 'Overview'
+	return 'Reading'
 }
 
 function formatTimestamp(value: number): string {
-  return new Date(value).toLocaleString([], {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
+	return new Date(value).toLocaleString([], {
+		month: 'short',
+		day: 'numeric',
+		hour: 'numeric',
+		minute: '2-digit',
+	})
 }
 
 async function main() {
-  const items = loadItems()
-  const recentId = consumeRecent()
-  const recentIdx = recentId ? items.findIndex((it) => it.id === recentId) : -1
+	const items = loadItems()
+	const recentId = consumeRecent()
+	const recentIdx = recentId
+		? items.findIndex((it) => it.id === recentId)
+		: -1
 
-  const state: AppState = {
-    screen: recentIdx >= 0 ? 'overview' : 'home',
-    items,
-    itemIndex: recentIdx >= 0 ? recentIdx : 0,
-    sectionIndex: 0,
-    readingPageIndex: 0,
-  }
+	const state: AppState = {
+		screen: recentIdx >= 0 ? 'overview' : 'home',
+		items,
+		itemIndex: recentIdx >= 0 ? recentIdx : 0,
+		sectionIndex: 0,
+		readingPageIndex: 0,
+	}
 
-  state.onChange = () => {
-    screenStatus.textContent = screenLabel(state.screen)
-    const item = state.items[state.itemIndex]
-    itemStatus.textContent = item ? `${state.itemIndex + 1}/${state.items.length} — ${item.title}` : '—'
-    if (state.screen === 'home' || !item?.sections[state.sectionIndex]) {
-      sectionStatus.textContent = '—'
-    } else {
-      const section = item.sections[state.sectionIndex]
-      const suffix = state.screen === 'reading' ? ' · reading' : ''
-      sectionStatus.textContent = `${state.sectionIndex + 1}/${item.sections.length} — ${section.heading}${suffix}`
-    }
-    callStatus.textContent = state.lastCall ?? '—'
-    renderItemList(state.items, state)
-  }
+	state.onChange = () => {
+		screenStatus.textContent = screenLabel(state.screen)
+		const item = state.items[state.itemIndex]
+		itemStatus.textContent = item
+			? `${state.itemIndex + 1}/${state.items.length} — ${item.title}`
+			: '—'
+		if (state.screen === 'home' || !item?.sections[state.sectionIndex]) {
+			sectionStatus.textContent = '—'
+		} else {
+			const section = item.sections[state.sectionIndex]
+			const suffix = state.screen === 'reading' ? ' · reading' : ''
+			sectionStatus.textContent = `${state.sectionIndex + 1}/${item.sections.length} — ${section.heading}${suffix}`
+		}
+		callStatus.textContent = state.lastCall ?? '—'
+		renderItemList(state.items, state)
+	}
 
-  itemList.addEventListener('click', (e) => {
-    const target = e.target as HTMLElement | null
-    const btn = target?.closest<HTMLButtonElement>('[data-action]')
-    if (!btn) return
-    const id = btn.dataset.id
-    if (!id) return
-    const action = btn.dataset.action
-    if (action === 'export') {
-      const item = state.items.find((it) => it.id === id)
-      if (item) downloadItem(item)
-      return
-    }
-    if (action === 'delete') {
-      if (!window.confirm('Delete this note?')) return
-      const next = removeItem(id)
-      state.items = next
-      if (state.itemIndex >= next.length) state.itemIndex = Math.max(0, next.length - 1)
-      state.onChange?.()
-    }
-  })
+	itemList.addEventListener('click', (e) => {
+		const target = e.target as HTMLElement | null
+		const btn = target?.closest<HTMLButtonElement>('[data-action]')
+		if (!btn) return
+		const id = btn.dataset.id
+		if (!id) return
+		const action = btn.dataset.action
+		if (action === 'export') {
+			const item = state.items.find((it) => it.id === id)
+			if (item) downloadItem(item)
+			return
+		}
+		if (action === 'delete') {
+			if (!window.confirm('Delete this note?')) return
+			const next = removeItem(id)
+			state.items = next
+			if (state.itemIndex >= next.length)
+				state.itemIndex = Math.max(0, next.length - 1)
+			state.onChange?.()
+		}
+	})
 
-  document.querySelector<HTMLButtonElement>('#export-all-btn')!.addEventListener('click', () => {
-    const count = downloadAll(loadItems())
-    console.info(`exported ${count} item${count === 1 ? '' : 's'} to markdown`)
-  })
+	document
+		.querySelector<HTMLButtonElement>('#export-all-btn')!
+		.addEventListener('click', () => {
+			const count = downloadAll(loadItems())
+			console.info(
+				`exported ${count} item${count === 1 ? '' : 's'} to markdown`,
+			)
+		})
 
-  renderItemList(state.items, state)
-  state.onChange()
+	renderItemList(state.items, state)
+	state.onChange()
 
-  const bridge = await waitForEvenAppBridge()
-  bridgeStatus.textContent = 'ready'
+	const bridge = await waitForEvenAppBridge()
+	bridgeStatus.textContent = 'ready'
 
-  const app = new GlassesApp(bridge, state)
-  await app.start()
-  glassesApp = app
-  glassesState = state
+	const app = new GlassesApp(bridge, state)
+	await app.start()
+	glassesApp = app
+	glassesState = state
 }
 
 main().catch((err) => {
-  bridgeStatus.textContent = `error: ${err?.message ?? err}`
-  console.error(err)
+	bridgeStatus.textContent = `error: ${err?.message ?? err}`
+	console.error(err)
 })

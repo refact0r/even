@@ -100,7 +100,7 @@ function homeListLabels(items: Item[]) {
 		.map((it, i) => trunc(`${i + 1}. ${it.title}`, ITEM_NAME_MAX))
 }
 
-const HOME_TITLE_H = 36
+const HOME_TITLE_H = 40
 
 function homeTitle(): TextContainerProperty {
 	return new TextContainerProperty({
@@ -111,7 +111,7 @@ function homeTitle(): TextContainerProperty {
 		borderWidth: 0,
 		borderColor: 0,
 		borderRadius: 0,
-		paddingLength: 8,
+		paddingLength: 6,
 		containerID: HOME_TITLE_ID,
 		containerName: 'title',
 		isEventCapture: 0,
