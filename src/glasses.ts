@@ -12,6 +12,7 @@ import {
 	OsEventTypeList,
 } from '@evenrealities/even_hub_sdk'
 import type { Item } from './types'
+import { askAboutDocument, concatPcm, normalizePcmChunk } from './client/ask'
 
 const W = 576
 const H = 288
@@ -21,6 +22,8 @@ const HOME_TITLE_ID = 5
 const OVW_NAV_ID = 2
 const OVW_PREVIEW_ID = 3
 const READ_TEXT_ID = 4
+const ASK_TEXT_ID = 6
+const ASK_ANSWER_BYTES = 900
 
 const ITEM_NAME_MAX = 62
 const OVW_NAV_HEADING_MAX = 22
@@ -33,7 +36,9 @@ const STARTUP_TEXT_BYTES = 999
 const STARTUP_READING_BYTES = 999
 const READING_PAGE_BYTES = 999
 
-export type Screen = 'home' | 'overview' | 'reading'
+export type Screen = 'home' | 'overview' | 'reading' | 'ask'
+
+export type AskPhase = 'recording' | 'thinking' | 'answer' | 'error'
 
 export interface AppState {
 	screen: Screen
@@ -41,6 +46,9 @@ export interface AppState {
 	itemIndex: number
 	sectionIndex: number
 	readingPageIndex: number
+	askPhase?: AskPhase
+	askAnswer?: string
+	askError?: string
 	lastCall?: string
 	onChange?: () => void
 }
@@ -189,7 +197,7 @@ function overviewNav(item: Item, idx: number): TextContainerProperty {
 		height: H,
 		borderWidth: 1,
 		borderColor: 8,
-		borderRadius: 0,
+		borderRadius: 12,
 		paddingLength: 4,
 		containerID: OVW_NAV_ID,
 		containerName: 'sections',
@@ -201,6 +209,15 @@ function overviewNav(item: Item, idx: number): TextContainerProperty {
 	})
 }
 
+function sectionHeader(item: Item, idx: number): string {
+	const section = item.sections[idx]
+	if (!section) return sanitize(item.title)
+	const heading = sanitize(section.heading)
+	return item.sections.length > 1
+		? `[${idx + 1}/${item.sections.length}] - ${heading}`
+		: heading
+}
+
 function previewText(
 	item: Item,
 	idx: number,
@@ -208,9 +225,10 @@ function previewText(
 ): string {
 	const section = item.sections[idx]
 	if (!section) return ''
-	const header = `${sanitize(section.heading)}\n\n`
+	const header = `${sectionHeader(item, idx)}\n\n`
 	return (
-		header + trunc(sanitize(section.content), Math.max(40, maxChars - header.length))
+		header +
+		trunc(sanitize(section.content), Math.max(40, maxChars - header.length))
 	)
 }
 
@@ -235,11 +253,7 @@ function overviewPreview(item: Item, idx: number): TextContainerProperty {
 }
 
 function readingSectionHeader(item: Item, idx: number) {
-	const section = item.sections[idx]
-	if (!section) return item.title
-	return item.sections.length > 1
-		? `[${idx + 1}/${item.sections.length}] - ${section.heading}`
-		: section.heading
+	return sectionHeader(item, idx)
 }
 
 function splitReadingSection(
@@ -417,12 +431,63 @@ function readingContainer(text: string): TextContainerProperty {
 	})
 }
 
+function askText(state: AppState): string {
+	const item = state.items[state.itemIndex]
+	const titleLine = item
+		? `[ask] - ${trunc(sanitize(item.title), 56)}\n\n`
+		: '[ask]\n\n'
+	switch (state.askPhase) {
+		case 'recording':
+			return `${titleLine}Listening...\n\n(tap to send · double-tap to cancel)`
+		case 'thinking':
+			return `${titleLine}Thinking...`
+		case 'answer':
+			return `${titleLine}${sanitize(state.askAnswer ?? '')}`
+		case 'error':
+			return `${titleLine}Error: ${sanitize(state.askError ?? 'unknown')}\n\n(double-tap to go back)`
+		default:
+			return `${titleLine}Ask about this document...`
+	}
+}
+
+function askContainer(text: string): TextContainerProperty {
+	return new TextContainerProperty({
+		xPosition: 0,
+		yPosition: 0,
+		width: W,
+		height: H,
+		borderWidth: 0,
+		borderColor: 5,
+		borderRadius: 0,
+		paddingLength: 6,
+		containerID: ASK_TEXT_ID,
+		containerName: 'ask',
+		isEventCapture: 1,
+		content: text,
+	})
+}
+
+function fullDocumentText(item: Item): string {
+	return item.sections
+		.map((s) => `## ${s.heading}\n\n${s.content}`)
+		.join('\n\n')
+}
+
 export class GlassesApp {
 	private bridge: EvenAppBridge
 	private state: AppState
 	private started = false
 	private rendering = false
-	private activeContainerName: 'home' | 'sections' | 'reading' | null = null
+	private activeContainerName:
+		| 'home'
+		| 'sections'
+		| 'reading'
+		| 'preview'
+		| 'ask'
+		| null = null
+	private audioBuffer: Uint8Array[] = []
+	private askInFlight = false
+	private micActive = false
 
 	constructor(bridge: EvenAppBridge, state: AppState) {
 		this.bridge = bridge
@@ -448,6 +513,8 @@ export class GlassesApp {
 			} else if (evt.sysEvent) {
 				this.logEvent('sys', evt.sysEvent)
 				this.handleSystem(evt.sysEvent)
+			} else if (evt.audioEvent) {
+				this.handleAudio(evt.audioEvent.audioPcm)
 			}
 		})
 		await this.renderCurrent()
@@ -460,6 +527,7 @@ export class GlassesApp {
 	private async renderCurrent() {
 		if (this.state.screen === 'home') await this.pushHome()
 		else if (this.state.screen === 'overview') await this.pushOverview()
+		else if (this.state.screen === 'ask') await this.pushAsk()
 		else await this.pushReading()
 		this.notify()
 	}
@@ -549,6 +617,141 @@ export class GlassesApp {
 		} finally {
 			this.rendering = false
 		}
+	}
+
+	private async pushAsk() {
+		const item = this.state.items[this.state.itemIndex]
+		if (!item) return this.pushHome()
+		if (this.rendering) return false
+		this.rendering = true
+		const text = truncBytes(askText(this.state), ASK_ANSWER_BYTES)
+		const container = askContainer(text)
+		try {
+			const ok = await this.renderPage('ask', {
+				containerTotalNum: 1,
+				textObject: [container],
+			})
+			if (!ok) return false
+			this.state.screen = 'ask'
+			this.activeContainerName = 'ask'
+			return true
+		} finally {
+			this.rendering = false
+		}
+	}
+
+	private async updateAskText() {
+		const text = truncBytes(askText(this.state), ASK_ANSWER_BYTES)
+		const ok = await this.bridge.textContainerUpgrade(
+			new TextContainerUpgrade({
+				containerID: ASK_TEXT_ID,
+				containerName: 'ask',
+				contentOffset: 0,
+				contentLength: byteLength(text),
+				content: text,
+			}),
+		)
+		this.state.lastCall = `textContainerUpgrade(ask) → ${ok}`
+		if (!ok && !this.rendering) {
+			await this.pushAsk()
+		} else {
+			this.notify()
+		}
+		return ok
+	}
+
+	private async enterAsk() {
+		if (this.state.screen === 'ask') return
+		this.audioBuffer = []
+		this.state.askPhase = 'recording'
+		this.state.askAnswer = undefined
+		this.state.askError = undefined
+		const ok = await this.pushAsk()
+		if (!ok) return
+		this.notify()
+		try {
+			const started = await this.bridge.audioControl(true)
+			this.micActive = !!started
+			this.state.lastCall = `audioControl(true) → ${started}`
+			if (!started) {
+				this.state.askPhase = 'error'
+				this.state.askError = 'mic failed to start'
+				await this.updateAskText()
+			}
+		} catch (err) {
+			this.micActive = false
+			this.state.askPhase = 'error'
+			this.state.askError =
+				err instanceof Error ? err.message : String(err)
+			await this.updateAskText()
+		}
+	}
+
+	private handleAskInput(et: OsEventTypeList) {
+		if (et === OsEventTypeList.DOUBLE_CLICK_EVENT) {
+			void this.exitAsk()
+			return
+		}
+		if (et === OsEventTypeList.CLICK_EVENT) {
+			if (this.state.askPhase === 'recording') {
+				void this.stopAndSendAsk()
+			}
+			return
+		}
+	}
+
+	private async stopMic() {
+		if (!this.micActive) return
+		try {
+			await this.bridge.audioControl(false)
+		} catch {}
+		this.micActive = false
+	}
+
+	private async stopAndSendAsk() {
+		if (this.askInFlight) return
+		const item = this.state.items[this.state.itemIndex]
+		if (!item) return
+		this.askInFlight = true
+		this.state.askPhase = 'thinking'
+		await this.updateAskText()
+		await this.stopMic()
+		const pcm = concatPcm(this.audioBuffer)
+		this.audioBuffer = []
+		try {
+			const answer = await askAboutDocument(
+				pcm,
+				item.title,
+				fullDocumentText(item),
+			)
+			this.state.askPhase = 'answer'
+			this.state.askAnswer = answer
+		} catch (err) {
+			this.state.askPhase = 'error'
+			this.state.askError =
+				err instanceof Error ? err.message : String(err)
+		} finally {
+			this.askInFlight = false
+			await this.updateAskText()
+		}
+	}
+
+	private async exitAsk() {
+		await this.stopMic()
+		this.audioBuffer = []
+		this.state.askPhase = undefined
+		this.state.askAnswer = undefined
+		this.state.askError = undefined
+		await this.pushReading()
+		this.notify()
+	}
+
+	private handleAudio(raw: unknown) {
+		if (this.state.screen !== 'ask') return
+		if (this.state.askPhase !== 'recording') return
+		const chunk = normalizePcmChunk(raw)
+		if (!chunk || chunk.length === 0) return
+		this.audioBuffer.push(chunk)
 	}
 
 	private async renderPage(
@@ -829,13 +1032,13 @@ export class GlassesApp {
 	private handleOverviewInput(et: OsEventTypeList) {
 		const item = this.state.items[this.state.itemIndex]
 		if (!item) return
-		const nextIndex = this.resolveTargetIndex(
-			et,
-			undefined,
-			this.state.sectionIndex,
-			item.sections.length,
-		)
 		if (et === OsEventTypeList.CLICK_EVENT) {
+			const nextIndex = this.resolveTargetIndex(
+				et,
+				undefined,
+				this.state.sectionIndex,
+				item.sections.length,
+			)
 			if (nextIndex < 0 || !item.sections[nextIndex]) return
 			this.setSelectedSection(item, nextIndex)
 			void this.pushReading().then(() => this.notify())
@@ -851,8 +1054,16 @@ export class GlassesApp {
 		) {
 			return
 		}
+		const nextIndex = this.resolveOverviewScrollIndex(item, et)
 		if (nextIndex < 0) return
 		void this.syncOverviewSelection(item, nextIndex, 'text')
+	}
+
+	private resolveOverviewScrollIndex(item: Item, et: OsEventTypeList) {
+		const count = item.sections.length
+		if (count <= 0) return -1
+		const delta = et === OsEventTypeList.SCROLL_BOTTOM_EVENT ? 1 : -1
+		return ((this.state.sectionIndex + delta) % count + count) % count
 	}
 
 	private setSelectedSection(item: Item, idx: number) {
@@ -890,6 +1101,10 @@ export class GlassesApp {
 		if (!item) return
 		if (et === OsEventTypeList.DOUBLE_CLICK_EVENT) {
 			void this.pushOverview().then(() => this.notify())
+			return
+		}
+		if (et === OsEventTypeList.CLICK_EVENT) {
+			void this.enterAsk()
 			return
 		}
 		if (
@@ -955,6 +1170,11 @@ export class GlassesApp {
 			this.handleOverviewInput(et)
 			return
 		}
+		if (this.state.screen === 'ask') {
+			if (containerName && containerName !== 'ask') return
+			this.handleAskInput(et)
+			return
+		}
 		if (this.state.screen !== 'reading') return
 		if (
 			containerName &&
@@ -992,12 +1212,7 @@ export class GlassesApp {
 		) {
 			const item = this.state.items[this.state.itemIndex]
 			if (!item) return
-			const nextIndex = this.resolveTargetIndex(
-				et,
-				undefined,
-				this.state.sectionIndex,
-				item.sections.length,
-			)
+			const nextIndex = this.resolveOverviewScrollIndex(item, et)
 			if (nextIndex < 0) return
 			void this.syncOverviewSelection(item, nextIndex, 'sys')
 			return
@@ -1007,9 +1222,19 @@ export class GlassesApp {
 			this.state.screen === 'reading' &&
 			(et === OsEventTypeList.SCROLL_TOP_EVENT ||
 				et === OsEventTypeList.SCROLL_BOTTOM_EVENT ||
-				et === OsEventTypeList.DOUBLE_CLICK_EVENT)
+				et === OsEventTypeList.DOUBLE_CLICK_EVENT ||
+				et === OsEventTypeList.CLICK_EVENT)
 		) {
 			this.handleReadingInput(et, 'sys')
+			return
+		}
+
+		if (
+			this.state.screen === 'ask' &&
+			(et === OsEventTypeList.CLICK_EVENT ||
+				et === OsEventTypeList.DOUBLE_CLICK_EVENT)
+		) {
+			this.handleAskInput(et)
 			return
 		}
 
