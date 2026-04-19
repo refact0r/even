@@ -8,7 +8,7 @@ What if all of that was already in your field of view, distilled down to what ma
 
 ## What it does
 
-Nutshell accepts any document — PDFs, articles, links, photos of text — and turns them into a simple, readable stream on your Even Realities glasses.
+Nutshell accepts any document — PDFs, articles, links, photos, even your own voice — and turns them into a simple, readable stream on your Even Realities glasses.
 
 - **Universal input.** Drop in a file, URL, or image. Nutshell handles the rest.
 - **Simple glasses UI.** Three screens: home, overview, reading. Scroll, click, done.
