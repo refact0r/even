@@ -4,6 +4,7 @@ import { addItem, consumeRecent, loadItems, removeItem, resetStorage } from './s
 import { GlassesApp, type AppState, type Screen } from './glasses'
 import { installDebugConsole } from './debug-console'
 import { getApiKey, setApiKey } from './client/client'
+import { downloadAll, downloadItem } from './client/export'
 import { ingestFile } from './data-stream/from-file'
 import { ingestLink } from './data-stream/from-link'
 import type { Item } from './types'
@@ -38,7 +39,10 @@ app.innerHTML = `
       <section class="card items">
         <div class="section-head">
           <h2>Notes</h2>
-          <span id="item-count">0</span>
+          <div class="section-head-right">
+            <span id="item-count">0</span>
+            <button id="export-all-btn" class="ghost slim" type="button">Export all</button>
+          </div>
         </div>
         <ol id="item-list"></ol>
       </section>
@@ -220,6 +224,7 @@ function renderItemList(items: Item[], state: AppState) {
           </div>
           <div class="meta">${it.sections.length} sections · ${formatTimestamp(it.createdAt)}</div>
           <div class="item-actions">
+            <button class="ghost slim" data-action="export" data-id="${escapeHtml(it.id)}" type="button">Export</button>
             <button class="ghost slim" data-action="delete" data-id="${escapeHtml(it.id)}" type="button">Delete</button>
           </div>
         </li>
@@ -285,15 +290,28 @@ async function main() {
 
   itemList.addEventListener('click', (e) => {
     const target = e.target as HTMLElement | null
-    const btn = target?.closest<HTMLButtonElement>('[data-action="delete"]')
+    const btn = target?.closest<HTMLButtonElement>('[data-action]')
     if (!btn) return
     const id = btn.dataset.id
     if (!id) return
-    if (!window.confirm('Delete this note?')) return
-    const next = removeItem(id)
-    state.items = next
-    if (state.itemIndex >= next.length) state.itemIndex = Math.max(0, next.length - 1)
-    state.onChange?.()
+    const action = btn.dataset.action
+    if (action === 'export') {
+      const item = state.items.find((it) => it.id === id)
+      if (item) downloadItem(item)
+      return
+    }
+    if (action === 'delete') {
+      if (!window.confirm('Delete this note?')) return
+      const next = removeItem(id)
+      state.items = next
+      if (state.itemIndex >= next.length) state.itemIndex = Math.max(0, next.length - 1)
+      state.onChange?.()
+    }
+  })
+
+  document.querySelector<HTMLButtonElement>('#export-all-btn')!.addEventListener('click', () => {
+    const count = downloadAll(loadItems())
+    console.info(`exported ${count} item${count === 1 ? '' : 's'} to markdown`)
   })
 
   renderItemList(state.items, state)

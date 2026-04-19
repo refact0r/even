@@ -704,5 +704,3 @@ document.getElementById("connect").onclick = async () => {
   console.log(loaded);
 };
 ```
-
-That's the full path from zero to "my web app stores JSON in Google Drive."

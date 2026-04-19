@@ -336,7 +336,14 @@ Split the webView into two views so the main view is focused on notes, and push 
 
 ---
 
-# Phase 4 — Local Markdown export (browser download)
+# Phase 4 — Local Markdown export (browser download)  ✅ DONE
+
+**Built (Steps 17–19):**
+- New [src/client/export.ts](src/client/export.ts) exports `itemToMarkdown`, `downloadItem`, `downloadAll`, `sanitizeFilename`. Deterministic formatter: `# title` / `> Captured ISO · type: …` blockquote / `## heading` + content per section. Blob + anchor-click download; no deps.
+- Per-item Export button added next to Delete in the stored-items list. [main.ts](src/main.ts) click delegation now dispatches on `data-action` (`export` → `downloadItem`; `delete` → confirm + `removeItem`).
+- "Export all" button added to the Notes section head → `downloadAll(loadItems())`; logs count to debug console.
+- Filenames: `<sanitized-title>-<yyyy-mm-dd>.md` (strips `/\:*?"<>|`, collapses whitespace, 80 char cap, `untitled` fallback).
+- Typecheck + `npm run build` clean.
 
 ## Goal
 
