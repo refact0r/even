@@ -25,7 +25,7 @@ export async function ingestFile(file: File): Promise<Item> {
     messages = [
       {
         role: 'user',
-        content: `Summarize the following document titled "${name}":\n\n${truncated}`,
+        content: `Structure the following document titled "${name}" into sections with original text:\n\n${truncated}`,
       },
     ]
   } else if (kind === 'image') {

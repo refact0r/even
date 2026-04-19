@@ -13,7 +13,7 @@ const app = document.querySelector<HTMLDivElement>('#app')!
 app.innerHTML = `
   <main>
     <header>
-      <h1>Universal Reader</h1>
+      <h1>nutshell</h1>
       <nav class="view-nav" role="tablist">
         <button data-view="notes" class="view-tab active" type="button">Notes</button>
         <button data-view="settings" class="view-tab" type="button">Settings</button>
@@ -47,13 +47,6 @@ app.innerHTML = `
         <ol id="item-list"></ol>
       </section>
 
-      <section class="card debug">
-        <div class="section-head">
-          <h2>Debug Console</h2>
-          <button id="clear-log-btn" class="ghost slim" type="button">Clear</button>
-        </div>
-        <div id="debug-log" class="debug-log" role="log" aria-live="polite"></div>
-      </section>
     </div>
 
     <div id="view-settings" hidden>
@@ -84,6 +77,11 @@ app.innerHTML = `
           <button id="add-btn">Add dummy item</button>
           <button id="reset-btn" class="ghost">Reset storage &amp; reload</button>
         </div>
+        <div class="section-head" style="margin-top:8px">
+          <h2>Debug Console</h2>
+          <button id="clear-log-btn" class="ghost slim" type="button">Clear</button>
+        </div>
+        <div id="debug-log" class="debug-log" role="log" aria-live="polite"></div>
       </section>
     </div>
   </main>
@@ -103,6 +101,9 @@ const viewSettings = document.querySelector<HTMLDivElement>('#view-settings')!
 const viewTabs = document.querySelectorAll<HTMLButtonElement>('.view-tab')
 
 installDebugConsole(debugLog, clearLogButton)
+
+let glassesApp: GlassesApp | null = null
+let glassesState: AppState | null = null
 
 function setView(view: 'notes' | 'settings') {
   viewNotes.hidden = view !== 'notes'
@@ -156,7 +157,13 @@ fileBtn.addEventListener('click', async () => {
   try {
     const item = await ingestFile(file)
     console.info(`ingestFile: ${item.title}`)
-    location.reload()
+    if (glassesApp && glassesState) {
+      glassesState.items = loadItems()
+      setIngestBusy(false, `Done: "${item.title}"`)
+      await glassesApp.refreshItems(glassesState.items)
+    } else {
+      location.reload()
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error(`ingestFile failed: ${msg}`)
@@ -174,7 +181,13 @@ urlBtn.addEventListener('click', async () => {
   try {
     const item = await ingestLink(url)
     console.info(`ingestLink: ${item.title}`)
-    location.reload()
+    if (glassesApp && glassesState) {
+      glassesState.items = loadItems()
+      setIngestBusy(false, `Done: "${item.title}"`)
+      await glassesApp.refreshItems(glassesState.items)
+    } else {
+      location.reload()
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error(`ingestLink failed: ${msg}`)
@@ -322,6 +335,8 @@ async function main() {
 
   const app = new GlassesApp(bridge, state)
   await app.start()
+  glassesApp = app
+  glassesState = state
 }
 
 main().catch((err) => {

@@ -17,6 +17,6 @@ Three screens managed by `GlassesApp`:
 
 ## Even SDK Quirks
 
-- On the simulator, overview input routing is inconsistent. A native list container did not receive scroll reliably; a text nav container with `isEventCapture: 1` worked.
-- Keep the event-capturing overview nav container last in the page container order.
+- On the simulator, overview input routing is inconsistent. A native list container did not receive scroll reliably; a text container with `isEventCapture: 1` worked. The preview (right panel) now holds event capture so the nav (left panel) doesn't receive firmware scroll events and avoids the scroll-bounce animation.
+- Keep the event-capturing overview preview container last in the page container order.
 - Some taps/double taps arrive as `sysEvent` with `eventSource` and no `eventType`; normalize those when handling overview/reading navigation.

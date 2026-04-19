@@ -93,6 +93,8 @@ header .sub {
   gap: 14px;
 }
 
+[hidden] { display: none !important; }
+
 .card {
   background: var(--panel);
   border: 1px solid var(--border);

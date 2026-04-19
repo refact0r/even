@@ -19,7 +19,7 @@ export async function ingestLink(url: string): Promise<Item> {
     messages: [
       {
         role: 'user',
-        content: `Fetch the contents of this URL and summarize it: ${parsed.toString()}`,
+        content: `Fetch the contents of this URL and structure it into sections: ${parsed.toString()}`,
       },
     ],
   })

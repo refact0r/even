@@ -114,7 +114,7 @@ function validateItem(raw: unknown, mode: Mode): Omit<Item, 'id' | 'createdAt'> 
   const sections = obj.sections
   if (!Array.isArray(sections) || sections.length === 0) return null
   if (mode === 'short' && sections.length !== 1) return null
-  if (mode === 'long' && sections.length > 7) return null
+  if (mode === 'long' && sections.length > 20) return null
 
   const cleanSections: Section[] = []
   for (const s of sections) {
